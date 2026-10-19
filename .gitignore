@@ -1,0 +1,28 @@
+# Lokale Build-Umgebung und Caches
+.venv/
+.build/
+build/
+dist/
+__pycache__/
+*.pyc
+
+# Fertige Pakete (über GitHub Releases verteilen, nicht ins Repository)
+*.dmg
+*.app/
+
+# Per scripts/fetch_binaries.py geladene Binärdateien (ffmpeg, ffprobe, Ollama)
+assets/bin/
+assets/downloads/
+
+# Projekt- und Laufzeitdaten
+*.vcproject
+autosave.json
+
+# Codex-Verlauf mit lokalen Pfaden – nicht veröffentlichen
+prompt.md
+
+# macOS / Editoren
+.DS_Store
+._*
+.idea/
+.vscode/
