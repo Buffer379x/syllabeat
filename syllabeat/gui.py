@@ -10,10 +10,9 @@ import time
 import uuid
 
 from PySide6.QtCore import Qt, QProcess, QProcessEnvironment, QSize, QTimer, QUrl, QEvent
-from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon, QKeySequence, QPainter, QPen, QPixmap
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
-    QGridLayout, QScrollArea,
-    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
+    QGridLayout, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
     QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QDoubleSpinBox, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
