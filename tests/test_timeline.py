@@ -180,11 +180,12 @@ class PlanningTests(unittest.TestCase):
     def test_offline_draft_uses_themed_clip_and_respects_short_sources(self):
         p = project()
         p["clips"][0]["duration"], p["clips"][0]["frame_count"] = 2.0, 50
-        plan = draft_plan(p)
+        style = {"variation": "gleichmaessig", "verse_beats": 8}
+        plan = draft_plan(p, style)
         self.assertEqual(plan["shots"][0]["clip_id"], "sun")
         self.assertEqual(plan["shots"][0]["end_beat"], 2)
         self.assertEqual(validate_plan(p, plan), [])
-        self.assertEqual(plan, draft_plan(p))
+        self.assertEqual(plan, draft_plan(p, style))
 
     def test_impossible_single_beat_interval_never_loops_or_freezes(self):
         p = project()
@@ -286,7 +287,14 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(music.get("offset"), shots[0].get("start"))
             self.assertEqual(music.get("lane"), "-1")
             self.assertEqual(music.get("duration"), "8s")
-            self.assertTrue(all(s.get("srcEnable") == "video" for s in shots))
+            self.assertEqual(root.get("version"), "1.8")
+            sequence = root.find("./library/event/project/sequence")
+            formats = {f.get("id") for f in root.findall("./resources/format")}
+            self.assertIn(sequence.get("format"), formats)
+            self.assertEqual(root.find("./resources/format").get("name"), "FFVideoFormat1080p25")
+            for item in shots:
+                self.assertIn(item.get("format"), formats)
+                self.assertIn(item.get("ref"), {a.get("id") for a in root.findall("./resources/asset")})
             ids = {r.get("id") for r in root.find("resources")}
             self.assertTrue(all(s.get("ref") in ids for s in root.iter("asset-clip")))
 

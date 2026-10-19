@@ -84,6 +84,30 @@ def plan_schema(project: dict) -> dict:
     }
 
 
+def scene_info(clip: dict, limit: int = 8) -> list[dict]:
+    """Compact scene list for prompts: what is visible from which second to which."""
+    rows = []
+    for segment in (clip.get("segments") or [])[:limit]:
+        if isinstance(segment, dict) and _number(segment.get("start")) and _number(segment.get("end")):
+            row = {"von": round(segment["start"], 2), "bis": round(segment["end"], 2)}
+            if segment.get("description"):
+                row["beschreibung"] = str(segment["description"])[:200]
+            rows.append(row)
+    return rows if len(rows) > 1 else []
+
+
+def style_rules(project: dict) -> str:
+    style = _style(project, None)
+    chorus = ("Refrains (Abschnitte mit repeat_of bzw. Vorlagen dafür) werden schneller geschnitten, etwa alle "
+              f"{style['chorus_beats']} Beats." if style["chorus_faster"] else "Refrains werden im selben Tempo wie die Strophen geschnitten.")
+    variation = {"gleichmaessig": "Gleichmäßiger Rhythmus: möglichst immer etwa gleich lange Einstellungen.",
+                 "abwechslungsreich": "Variiere die Länge der Einstellungen: nicht jede Einstellung umfasst exakt dieselbe Beat-Zahl.",
+                 "wild": "Stark wechselnde Längen von 1 bis 8 Beats."}[style["variation"]]
+    return (f"SCHNITTSTIL: Strophen etwa alle {style['verse_beats']} Beats ein Schnitt. {chorus} {variation} "
+            "Nutze nicht den ganzen Quellclip: wähle source_in passend zur Szene (siehe szenen) und zeige "
+            "verschiedene Ausschnitte desselben Clips statt immer den Anfang.\n")
+
+
 def build_prompt(project: dict) -> str:
     boundaries = beat_boundaries(project)
     last = len(boundaries) - 1
@@ -98,7 +122,7 @@ def build_prompt(project: dict) -> str:
         "clips": [{
             "id": c["id"], "dateiname": c.get("name") or Path(c.get("path", "")).name,
             "dauer_sekunden": c.get("duration"), "beschreibung": c.get("description", ""),
-            "tags": c.get("tags", []),
+            "tags": c.get("tags", []), "szenen": scene_info(c),
         } for c in project.get("clips", [])],
     }
     return (
@@ -122,7 +146,8 @@ def build_prompt(project: dict) -> str:
         "6. Abschnitte mit repeat_of übernehmen exakt dieselbe Clip-Reihenfolge, source_in-Werte und "
         "relativen Beat-Abstände des referenzierten Abschnitts. Abschnittsgrenzen werden auf den "
         "nächstgelegenen Beat bezogen. Bei unvereinbaren Abschnitten nichts erfinden.\n"
-        "7. Bildschnitte werden beim Export einmal auf die nächstgelegene Timeline-Framegrenze gerundet. "
+        "7. " + style_rules(project) +
+        "8. Bildschnitte werden beim Export einmal auf die nächstgelegene Timeline-Framegrenze gerundet. "
         "Lasse nach Möglichkeit mindestens einen Quellframe Reserve am Clipende.\n\n"
         "ANALYSEDATEN:\n" + json.dumps(data, ensure_ascii=False, indent=2)
         + "\n\nJSON-SCHEMA:\n" + json.dumps(plan_schema(project), ensure_ascii=False, indent=2)
@@ -350,8 +375,60 @@ def _tokens(text: str) -> set[str]:
     return {t for t in re.findall(r"[a-z0-9]+", plain) if len(t) > 2 and t not in stop}
 
 
-def draft_plan(project: dict) -> dict:
-    """Deterministic offline rough cut; semantic vision tags improve word matching."""
+def _chorus_sections(project: dict) -> set[str]:
+    """Sections that repeat (or are repeated) plus anything labelled as a chorus."""
+    sections = [s for s in (project.get("audio") or {}).get("sections", []) if isinstance(s, dict)]
+    referenced = {s.get("repeat_of") for s in sections if s.get("repeat_of")}
+    result = set()
+    for s in sections:
+        label = str(s.get("label", "")).casefold()
+        if s.get("repeat_of") or s.get("id") in referenced or "refrain" in label or "chorus" in label:
+            result.add(s.get("id"))
+    return result
+
+
+def _style(project: dict, override: dict | None) -> dict:
+    style = {"variation": "abwechslungsreich", "verse_beats": 4, "chorus_beats": 2, "chorus_faster": True, "seed": 1}
+    style.update(project.get("cut_style") or {})
+    style.update(override or {})
+    return style
+
+
+def _next_length(style: dict, rng, chorus: bool) -> int:
+    """Desired beats until the next cut; 'Variation' decides how far this drifts from the base."""
+    base = max(1, int(style["chorus_beats"] if chorus and style["chorus_faster"] else style["verse_beats"]))
+    variation = style["variation"]
+    if variation == "gleichmaessig":
+        return base
+    if variation == "wild":
+        pool = [1, 1, 2, 2, 3, 4] if chorus and style["chorus_faster"] else [2, 3, 4, 4, 6, 8]
+        return rng.choice(pool)
+    return max(1, rng.choice([base, base, max(1, base // 2), base * 2 if not chorus else base, base + 1]))
+
+
+def _windows(clip: dict, available: Fraction) -> list[tuple[Fraction, Fraction, str]]:
+    """Scenes of a clip (start, end, description); a clip without scenes is one window."""
+    windows = []
+    for segment in clip.get("segments") or []:
+        if not isinstance(segment, dict) or not _number(segment.get("start")) or not _number(segment.get("end")):
+            continue
+        start, end = _fraction(segment["start"]), min(_fraction(segment["end"]), available)
+        if end > start:
+            windows.append((start, end, str(segment.get("description", ""))))
+    return windows or [(Fraction(0), available, "")]
+
+
+def draft_plan(project: dict, style: dict | None = None) -> dict:
+    """Deterministic offline rough cut.
+
+    Cuts follow the project's cut style: the number of beats between two cuts
+    varies (seeded, so the same seed gives the same cut), choruses cut faster,
+    and every shot starts at a fresh position inside a scene of its clip instead
+    of always at the clip start. Vision descriptions of scenes steer the choice.
+    """
+    import random
+    style = _style(project, style)
+    rng = random.Random(style["seed"])
     boundaries = beat_boundaries(project)
     clips = project.get("clips", [])
     if not clips:
@@ -361,6 +438,11 @@ def draft_plan(project: dict) -> dict:
     ranges, section_errors = _section_ranges(project, boundaries)
     if section_errors:
         raise PlanError("\n".join(section_errors))
+    chorus_ids = _chorus_sections(project)
+    chorus_beats = set()
+    for sid, (sa, sb, _) in ranges.items():
+        if sid in chorus_ids:
+            chorus_beats.update(range(sa, sb))
     # A chorus template must also fit the slowest corresponding repeat. Cutting
     # at section edges keeps that constraint local and avoids hidden source trims.
     section_edges = sorted({edge for a, b, _ in ranges.values() for edge in (a, b)})
@@ -382,34 +464,50 @@ def draft_plan(project: dict) -> dict:
                     break
         return needed
 
-    usage, shots = {c["id"]: 0 for c in clips}, []
+    usage = {c["id"]: 0 for c in clips}
+    cursors: dict[tuple[str, int], Fraction] = {}
     corpus = {c["id"]: _tokens(" ".join([c.get("name", ""), c.get("description", ""), " ".join(c.get("tags", []))])) for c in clips}
+    shots = []
     a = 0
     while a < len(boundaries) - 1:
         if frames[a + 1] <= frames[a]:
             raise PlanError(f"Beat-Intervall {a} ist kürzer als ein Timeline-Frame. Bitte Beatliste bereinigen.")
-        text = " ".join(line.get("text", "") for line in (project.get("audio") or {}).get("lines", []) if line.get("start", 0) < boundaries[min(a + 4, len(boundaries) - 1)] and line.get("end", 0) > boundaries[a])
+        last_beat = len(boundaries) - 1
+        wanted = _next_length(style, rng, a in chorus_beats)
+        edge = next((e for e in section_edges if e > a), last_beat)
+        last = min(a + wanted, edge, last_beat)
+        text = " ".join(line.get("text", "") for line in (project.get("audio") or {}).get("lines", []) if line.get("start", 0) < boundaries[min(a + 4, last_beat)] and line.get("end", 0) > boundaries[a])
         tokens = _tokens(text)
         candidates = []
-        last = min(a + 4, len(boundaries) - 1, next((edge for edge in section_edges if edge > a), len(boundaries) - 1))
         for c in clips:
             source_rate = _rate(c)
             available = _fraction(c.get("duration", 0))
             if isinstance(c.get("frame_count"), int) and c["frame_count"] > 0:
                 available = min(available, Fraction(c["frame_count"], 1) / source_rate)
-            b = a
-            while b < last and required_duration(a, b + 1) <= available:
-                b += 1
-            if b > a:
-                score = len(tokens & corpus[c["id"]]) * 10 - usage[c["id"]] * 0.5
-                if shots and shots[-1]["clip_id"] == c["id"]:
-                    score -= 2
-                candidates.append((score, b - a, str(c["id"]), c, b))
+            reserve = 1 / source_rate  # source_in is rounded to a frame: keep one frame spare when not starting at 0
+            for index, (w_start, w_end, w_text) in enumerate(_windows(c, available)):
+                position = cursors.get((c["id"], index), w_start)
+                reused = False
+                if w_end - position - (reserve if position > 0 else 0) < required_duration(a, a + 1):
+                    position, reused = w_start, True
+                position = Fraction(math.floor(position * 1000), 1000)
+                for limit, crossing in ((min(w_end, available), False), (available, True)):
+                    b = a
+                    while b < last and required_duration(a, b + 1) <= limit - position - (reserve if position > 0 else 0):
+                        b += 1
+                    if b > a:
+                        match = len(tokens & (corpus[c["id"]] | _tokens(w_text)))
+                        score = (match * 10 - usage[c["id"]] * 0.5 + (3 if b - a == last - a else 0)
+                                 - (4 if reused else 0) - (3 if crossing else 0)
+                                 - (2 if shots and shots[-1]["clip_id"] == c["id"] else 0) + rng.random() * 1.5)
+                        candidates.append((score, b - a, str(c["id"]), index, position, b, c))
+                        break
         if not candidates:
             raise PlanError(f"Kein Clip reicht für Beat-Intervall {a} ({boundaries[a+1]-boundaries[a]:.3f} s). Bitte längere Clips hinzufügen oder Beats korrigieren.")
-        _, _, _, clip, b = max(candidates, key=lambda row: (row[0], row[1], row[2]))
-        shots.append({"clip_id": clip["id"], "start_beat": a, "end_beat": b, "source_in": 0.0})
+        _, _, _, index, position, b, clip = max(candidates, key=lambda row: (row[0], row[1], row[2], row[3]))
+        shots.append({"clip_id": clip["id"], "start_beat": a, "end_beat": b, "source_in": float(position)})
         usage[clip["id"]] += 1
+        cursors[(clip["id"], index)] = position + required_duration(a, b) + Fraction(1, 4)
         a = b
     return apply_repeats(project, {"version": 1, "shots": shots})
 

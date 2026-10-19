@@ -255,6 +255,14 @@ def scan_clips(folder, existing_clips=None, progress=None, cancel=None) -> list[
                     result['samples'] = [thumbnail]
             identity = result.get('id') or uuid.uuid4().hex
             used_ids.add(identity)
+            if not result.get('segments'):
+                _progress(progress, f'Szenen erkennen: {path.name}', (index + 0.5) / len(paths))
+                try:
+                    result['segments'] = detect_segments(path, duration, float(rate), cancel)
+                except AnalysisCancelled:
+                    raise
+                except Exception:
+                    result['segments'] = [{'start': 0.0, 'end': round(duration, 3)}]
             vfr = _vfr_sample(path, cancel)
             warnings = []
             if duration_source == 'container_duration':
@@ -292,6 +300,59 @@ def scan_clips(folder, existing_clips=None, progress=None, cancel=None) -> list[
     suffix = f' ({len(failures)} unlesbare Dateien übersprungen)' if failures else ''
     _progress(progress, f'{len(clips)} Clips eingelesen{suffix}.', 1)
     return clips
+
+
+SEGMENT_MIN = 0.8      # seconds; shorter shots are merged into their neighbour
+SEGMENT_MAX = 5.0      # seconds; long takes are divided so each part can be described
+
+
+def detect_segments(path, duration: float, fps: float, cancel: Cancel | None = None) -> list[dict]:
+    """Split a clip into scenes: hard cuts first, then long takes in equal parts.
+
+    Colour histograms of a small, 4-per-second sample are compared; a jump marks
+    a cut. The result always covers 0..duration without gaps, so any part of a
+    clip can be addressed as ``source_in``.
+    """
+    import cv2
+    capture = cv2.VideoCapture(str(path))
+    cuts: list[float] = []
+    try:
+        if capture.isOpened() and fps > 0:
+            step = max(1, round(fps / 4))
+            previous, index = None, 0
+            while True:
+                if index % step:
+                    if not capture.grab():
+                        break
+                    index += 1
+                    continue
+                ok, frame = capture.read()
+                if not ok or frame is None:
+                    break
+                if index % (step * 8) == 0:
+                    _check_cancel(cancel)
+                small = cv2.resize(frame, (64, 36), interpolation=cv2.INTER_AREA)
+                hist = cv2.calcHist([cv2.cvtColor(small, cv2.COLOR_BGR2HSV)], [0, 1], None, [16, 8], [0, 180, 0, 256])
+                cv2.normalize(hist, hist)
+                if previous is not None and cv2.compareHist(previous, hist, cv2.HISTCMP_BHATTACHARYYA) > 0.45:
+                    cuts.append(index / fps)
+                previous = hist
+                index += 1
+    finally:
+        capture.release()
+    edges = [0.0]
+    for cut in cuts:
+        if cut - edges[-1] >= SEGMENT_MIN and duration - cut >= SEGMENT_MIN:
+            edges.append(cut)
+    edges.append(duration)
+    segments = []
+    for start, end in zip(edges, edges[1:]):
+        parts = max(1, math.ceil((end - start) / SEGMENT_MAX - 1e-9))
+        for part in range(parts):
+            a = start + (end - start) * part / parts
+            b = start + (end - start) * (part + 1) / parts
+            segments.append({'start': round(a, 3), 'end': round(b if part < parts - 1 else end, 3)})
+    return segments
 
 
 def _thumbnail(capture, cv2, first_image, duration: float) -> dict | None:
@@ -343,8 +404,11 @@ def retime_beats(beats: list[float], mode: str, duration: float, offset: float =
     return [round(t + offset, 6) for t in clean if 0 < t + offset < duration]
 
 
-def extract_frames(clip: dict, count: int = 3) -> list[dict]:
-    """Extract bounded-size JPEGs, evenly spread over the central 60% of a clip."""
+def extract_frames(clip: dict, count: int = 3, times: list[float] | None = None) -> list[dict]:
+    """Extract bounded-size JPEGs, evenly spread over the central 60% of a clip.
+
+    ``times`` (seconds) overrides the spread, e.g. to look at the middle of every scene.
+    """
     if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 30:
         raise AnalysisError('Bitte zwischen 1 und 30 Vorschaubilder pro Clip wählen.')
     import cv2
@@ -358,6 +422,8 @@ def extract_frames(clip: dict, count: int = 3) -> list[dict]:
         raise AnalysisError(f'Video konnte nicht geöffnet werden: {path.name}')
     results = []
     fractions = [0.5] if count == 1 else [0.2 + 0.6 * i / (count - 1) for i in range(count)]
+    if times:
+        fractions = [min(0.999, max(0.0, float(t) / duration)) for t in times[:30]]
     try:
         for position in fractions:
             target = duration * position
@@ -655,12 +721,8 @@ def analyze_audio(audio_path, lyrics='', whisper_model='mlx-community/whisper-sm
     transcribe = not beats_only and bool(whisper_model)
     if transcribe:
         _progress(progress, 'MLX Whisper wird geladen; beim ersten Mal wird das Modell heruntergeladen …', 0.4)
-    model_root = os.environ.get('VC_MODEL_DIR')
-    if model_root:
-        cache = Path(model_root).expanduser() / 'huggingface'
-        cache.mkdir(parents=True, exist_ok=True)
-        os.environ.setdefault('HF_HOME', str(cache))
-        os.environ.setdefault('HF_HUB_CACHE', str(Path(os.environ['HF_HOME']).expanduser() / 'hub'))
+    from .storage import configure_model_cache
+    configure_model_cache()
     result = {}
     if transcribe:
         try:

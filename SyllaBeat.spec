@@ -8,7 +8,7 @@ _package = (root / 'syllabeat/__init__.py').read_text(encoding='utf-8')
 VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', _package).group(1)
 BUILD = __import__('os').environ.get('SYLLABEAT_BUILD_NUMBER', '1')
 
-datas = [(str(root/'BEDIENUNG.html'), '.'), (str(root/'assets/licenses'), 'licenses'), (str(root/'assets/binaries.json'), '.')]
+datas = [(str(root/'BEDIENUNG.html'), '.'), (str(root/'assets/licenses'), 'licenses'), (str(root/'assets/binaries.json'), '.'), (str(root/'assets/icon-1024.png'), 'assets')]
 binaries = []
 hiddenimports = ['PySide6.QtMultimedia', 'PySide6.QtMultimediaWidgets']
 for package in ['librosa', 'mlx_whisper', 'mlx', 'opentimelineio', 'tiktoken_ext']:

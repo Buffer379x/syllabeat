@@ -20,7 +20,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
-from .storage import app_support
+from .storage import app_support, models_dir
 
 
 class ServiceError(RuntimeError):
@@ -242,7 +242,7 @@ class OllamaManager:
             parsed = urllib.parse.urlparse(self.base_url)
             host = "[::1]" if parsed.hostname == "::1" else "127.0.0.1"
             env["OLLAMA_HOST"] = f"{host}:{parsed.port or 11434}"
-            model_dir = app_support() / "models/ollama"
+            model_dir = models_dir() / "ollama"
             model_dir.mkdir(parents=True, exist_ok=True)
             env["OLLAMA_MODELS"] = str(model_dir)
             # Official Ollama distributions keep Metal/MLX libraries next to the executable.
@@ -409,8 +409,9 @@ VISION_SCHEMA = {
         "mood": {"type": "string"},
         "tags": {"type": "array", "items": {"type": "string"}},
         "filename_suggestion": {"type": "string"},
+        "moments": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["description", "action", "motif", "mood", "tags", "filename_suggestion"],
+    "required": ["description", "action", "motif", "mood", "tags", "filename_suggestion", "moments"],
 }
 
 
@@ -438,7 +439,13 @@ def _describe_clip(clip: dict, manager: OllamaManager, model: str, frame_count: 
                    progress: Callable | None, cancel: Any) -> dict:
     from .analysis import extract_frames
     name = Path(clip["path"]).name
-    frames = extract_frames(clip, count=int(frame_count))
+    segments = [s for s in clip.get("segments", []) if isinstance(s, dict)]
+    picked: list[dict] = []
+    if len(segments) > 1:
+        wanted = min(len(segments), max(int(frame_count), 6), 10)
+        picked = [segments[round(i * (len(segments) - 1) / max(1, wanted - 1))] for i in range(wanted)] if wanted > 1 else segments[:1]
+        picked = [s for n, s in enumerate(picked) if s not in picked[:n]]
+    frames = extract_frames(clip, count=int(frame_count), times=[(s["start"] + s["end"]) / 2 for s in picked] or None)
     if not frames:
         raise ServiceError(f"Aus {name} konnten keine Bilder gelesen werden.")
     _check_cancel(cancel)
@@ -451,6 +458,7 @@ def _describe_clip(clip: dict, manager: OllamaManager, model: str, frame_count: 
         "Erfinde keine Handlung zwischen den Bildern und keine Identitäten oder Gefühle von Personen. "
         "description: ein kurzer prägnanter Satz zu Handlung, Motiv und visueller Stimmung; "
         "action: sichtbare Bewegung/Handlung; motif: Hauptmotiv und Umgebung; mood: visuelle Atmosphäre; "
+        "moments: genau ein kurzer Satz pro Bild, in der Reihenfolge der Bilder, der nur dieses Bild beschreibt; "
         "tags: drei bis acht passende deutsche Suchbegriffe; filename_suggestion: drei bis sechs "
         "beschreibende Wörter, durch Unterstriche getrennt, ohne Dateiendung, keine Pfade. "
         "Antworte ausschließlich als JSON nach dem vorgegebenen Schema."
@@ -465,6 +473,21 @@ def _describe_clip(clip: dict, manager: OllamaManager, model: str, frame_count: 
     if not vision["description"].strip():
         raise ServiceError(f"Die Bildanalyse für {name} enthält keine Beschreibung.")
     vision["tags"] = [tag.strip() for tag in vision["tags"] if tag.strip()][:12]
+    moments = vision.get("moments")
+    vision["moments"] = [str(m).strip()[:300] for m in moments] if isinstance(moments, list) else []
+    if picked and len(vision["moments"]) == len(picked):
+        for segment in segments:
+            segment.pop("description", None)
+        for segment, moment in zip(picked, vision["moments"]):
+            segment["description"] = moment
+        # Scenes between two described ones inherit the preceding description.
+        last = ""
+        for segment in segments:
+            if segment.get("description"):
+                last = segment["description"]
+            else:
+                segment["description"] = last
+        clip["segments"] = segments
     clip["vision"] = vision
     clip["description"] = vision["description"].strip()
     clip["tags"] = vision["tags"]

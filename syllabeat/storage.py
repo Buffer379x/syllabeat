@@ -46,6 +46,36 @@ def app_support() -> Path:
     return root
 
 
+def settings_path() -> Path:
+    return app_support() / "settings.json"
+
+
+def load_settings() -> dict:
+    try:
+        data = json.loads(settings_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def models_dir(config: dict | None = None) -> Path:
+    """Where Whisper and Ollama models live: VC_MODEL_DIR, the user setting, or the data folder."""
+    chosen = os.environ.get("VC_MODEL_DIR") or (config if config is not None else load_settings()).get("models_dir")
+    root = Path(str(chosen)).expanduser() if chosen else app_support() / "models"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def configure_model_cache() -> Path:
+    """Point the Hugging Face cache (Whisper) at models_dir() for the current process."""
+    root = models_dir()
+    cache = root / "huggingface"
+    cache.mkdir(parents=True, exist_ok=True)
+    os.environ["HF_HOME"] = str(cache)
+    os.environ["HF_HUB_CACHE"] = str(cache / "hub")
+    return root
+
+
 def recent_projects() -> list[str]:
     """Most recently used project files that still exist (newest first)."""
     try:
@@ -68,6 +98,14 @@ def remember_project(path: str | Path) -> list[str]:
     return items
 
 
+CUT_VARIATIONS = ("gleichmaessig", "abwechslungsreich", "wild")
+
+
+def default_cut_style() -> dict:
+    """Rhythm of the automatic rough cut, measured in beats between two cuts."""
+    return {"variation": "abwechslungsreich", "verse_beats": 4, "chorus_beats": 2, "chorus_faster": True, "seed": 1}
+
+
 def new_project() -> dict:
     return {
         "version": 1,
@@ -79,6 +117,7 @@ def new_project() -> dict:
         "clips": [],
         "audio": {},
         "plan": None,
+        "cut_style": default_cut_style(),
     }
 
 
@@ -134,6 +173,10 @@ def load_project(path: str | Path) -> dict:
             pending.extend((child, depth + 1) for child in value)
     project = new_project()
     project.update(loaded)
+    if not isinstance(project.get("cut_style"), dict):
+        project["cut_style"] = default_cut_style()
+    else:
+        project["cut_style"] = {**default_cut_style(), **project["cut_style"]}
     _validate_project(project)
     return project
 
@@ -206,6 +249,15 @@ def _validate_project(project: dict) -> None:
         for key in ("tags", "metadata_warnings"):
             if key in clip:
                 string_list(clip[key], f"{field}.{key}")
+        if "segments" in clip:
+            array(clip["segments"], f"{field}.segments", 2000)
+            for segment in clip["segments"]:
+                if not isinstance(segment, dict):
+                    fail(f"{field}.segments", "eine Liste mit Szenen-Objekten")
+                number(segment.get("start"), f"{field}.segments.start", maximum=clip["duration"] + 0.001)
+                number(segment.get("end"), f"{field}.segments.end", minimum=segment["start"], maximum=clip["duration"] + 0.001)
+                if "description" in segment:
+                    text(segment["description"], f"{field}.segments.description")
         if "vision" in clip:
             vision = clip["vision"]
             if not isinstance(vision, dict):
@@ -286,6 +338,16 @@ def _validate_project(project: dict) -> None:
                 number(audio[key], f"audio.{key}")
         if audio.get("alignment_quality") is not None:
             number(audio["alignment_quality"], "audio.alignment_quality", maximum=1)
+    style = project.get("cut_style")
+    if not isinstance(style, dict):
+        fail("cut_style", "ein Objekt")
+    if style.get("variation") not in CUT_VARIATIONS:
+        fail("cut_style.variation", "gleichmaessig, abwechslungsreich oder wild")
+    for key in ("verse_beats", "chorus_beats"):
+        integer(style.get(key), f"cut_style.{key}", minimum=1, maximum=64)
+    integer(style.get("seed"), "cut_style.seed", minimum=0, maximum=2 ** 31)
+    if not isinstance(style.get("chorus_faster"), bool):
+        fail("cut_style.chorus_faster", "ein Ja/Nein-Wert")
     plan = project.get("plan")
     if plan is not None:
         if not isinstance(plan, dict) or type(plan.get("version")) is not int or plan["version"] != 1:

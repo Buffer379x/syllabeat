@@ -1,4 +1,4 @@
-"""Final Cut Pro 7, Final Cut Pro and OpenTimelineIO interchange exports.
+"""Final Cut Pro 7 / DaVinci Resolve XML, Final Cut Pro XML, EDL and OpenTimelineIO interchange exports.
 
 All formats consume planning.compile_timeline's single absolute frame table.
 No adapter or external executable is needed for the XML formats.
@@ -205,8 +205,30 @@ def _time(value: Fraction | int) -> str:
     return f"{rational.numerator}/{rational.denominator}s"
 
 
+_APPLE_FORMATS = {(1920, 1080): "1080p", (3840, 2160): "2160p", (1280, 720): "720p"}
+_APPLE_RATES = {Fraction(24): "24", Fraction(25): "25", Fraction(30): "30", Fraction(50): "50", Fraction(60): "60",
+                Fraction(24000, 1001): "2398", Fraction(30000, 1001): "2997", Fraction(60000, 1001): "5994"}
+
+
+def _format_element(parent: ET.Element, identifier: str, rate: Fraction, width: int, height: int) -> ET.Element:
+    """Plain progressive format in the shape Final Cut Pro itself writes.
+
+    Apple's own names are only used for the canonical sizes and rates; other
+    formats stay anonymous, which FCP accepts as a custom format.
+    """
+    attributes = {"id": identifier}
+    suffix = _APPLE_RATES.get(rate)
+    kind = _APPLE_FORMATS.get((width, height))
+    if kind and suffix:
+        attributes["name"] = f"FFVideoFormat{kind}{suffix}"
+    attributes.update(frameDuration=_time(1 / rate), width=width, height=height)
+    if kind:
+        attributes["colorSpace"] = "1-1-1 (Rec. 709)"
+    return _sub(parent, "format", **attributes)
+
+
 def export_fcpxml(project: dict, plan: dict, path: str | Path) -> Path:
-    """Write the conservative Apple FCPXML 1.6 vocabulary, readable by modern FCP.
+    """Write Final Cut Pro XML 1.8, which current Final Cut Pro and DaVinci Resolve import.
 
     The primary storyline contains only video. The complete music asset is
     connected below its first shot, with offset expressed in that shot's source
@@ -215,43 +237,87 @@ def export_fcpxml(project: dict, plan: dict, path: str | Path) -> Path:
     timeline = compile_timeline(project, plan)
     rate = Fraction(timeline["fps_num"], timeline["fps_den"])
     frame = 1 / rate
-    root = ET.Element("fcpxml", version="1.6")
+    width, height = int(timeline["width"]), int(timeline["height"])
+    root = ET.Element("fcpxml", version="1.8")
     resources = _sub(root, "resources")
-    _sub(resources, "format", id="timeline-format", frameDuration=_time(frame), width=timeline["width"], height=timeline["height"], fieldOrder="progressive", paspH="1", paspV="1")
-    used = {}
+    _format_element(resources, "r1", rate, width, height)
+    used, next_id = {}, 2
     for shot in timeline["shots"]:
         clip = shot["clip"]
         if clip["id"] in used:
             continue
-        number = len(used) + 1
-        resource_id, format_id = f"video-{number}", f"format-{number}"
-        used[clip["id"]] = resource_id
         source_rate = Fraction(shot["source_fps_num"], shot["source_fps_den"])
-        _sub(resources, "format", id=format_id, frameDuration=_time(1 / source_rate), width=clip.get("width", timeline["width"]), height=clip.get("height", timeline["height"]), fieldOrder="progressive", paspH="1", paspV="1")
+        clip_width, clip_height = int(clip.get("width", width)), int(clip.get("height", height))
+        if (source_rate, clip_width, clip_height) == (rate, width, height):
+            format_id = "r1"
+        else:
+            format_id = f"r{next_id}"
+            next_id += 1
+            _format_element(resources, format_id, source_rate, clip_width, clip_height)
+        resource_id = f"r{next_id}"
+        next_id += 1
+        used[clip["id"]] = (resource_id, format_id)
         _sub(resources, "asset", id=resource_id, name=clip.get("name") or Path(clip["path"]).name,
              src=media_url(clip["path"]), start="0s", duration=_time(Fraction(_source_frames(clip, source_rate), 1) / source_rate),
-             hasVideo="1", hasAudio="0", format=format_id)
+             hasVideo="1", format=format_id)
     audio = timeline["audio"]
     sample_rate = int(audio.get("sample_rate") or 48000)
     audio_duration = Fraction(round(float(audio["duration"]) * sample_rate), sample_rate)
-    _sub(resources, "asset", id="music", name=Path(audio["path"]).name,
-         src=media_url(audio["path"]), start="0s", duration=_time(audio_duration), hasVideo="0", hasAudio="1",
+    music_id = f"r{next_id}"
+    _sub(resources, "asset", id=music_id, name=Path(audio["path"]).name,
+         src=media_url(audio["path"]), start="0s", duration=_time(audio_duration), hasAudio="1",
          audioSources="1", audioChannels=str(max(1, min(2, int(audio.get("channels", 2))))), audioRate=sample_rate)
     library = _sub(root, "library")
     event = _sub(library, "event", name="SyllaBeat")
     project_element = _sub(event, "project", name=timeline["name"])
-    sequence = _sub(project_element, "sequence", format="timeline-format", duration=_time(timeline["duration_frames"] * frame), tcStart="0s", tcFormat="NDF", audioLayout="stereo", audioRate="48k")
+    sequence = _sub(project_element, "sequence", format="r1", duration=_time(timeline["duration_frames"] * frame), tcStart="0s", tcFormat="NDF", audioLayout="stereo", audioRate="48k")
     spine = _sub(sequence, "spine")
     for index, shot in enumerate(timeline["shots"]):
         source_rate = Fraction(shot["source_fps_num"], shot["source_fps_den"])
         source_start = Fraction(shot["source_in_frame"], 1) / source_rate
+        resource_id, format_id = used[shot["clip_id"]]
         item = _sub(spine, "asset-clip", name=shot["clip"].get("name") or Path(shot["clip"]["path"]).name,
-                    ref=used[shot["clip_id"]], offset=_time(shot["start"] * frame), start=_time(source_start),
-                    duration=_time(shot["duration_frames"] * frame), srcEnable="video")
+                    ref=resource_id, offset=_time(shot["start"] * frame), start=_time(source_start),
+                    duration=_time(shot["duration_frames"] * frame), format=format_id, tcFormat="NDF")
         if index == 0:
-            _sub(item, "asset-clip", name=Path(audio["path"]).name, ref="music", lane="-1",
-                 offset=_time(source_start), start="0s", duration=_time(audio_duration), srcEnable="audio", audioRole="music")
+            _sub(item, "asset-clip", name=Path(audio["path"]).name, ref=music_id, lane="-1",
+                 offset=_time(source_start), start="0s", duration=_time(audio_duration), audioRole="dialogue.music")
     return _write_xml(root, path, "fcpxml")
+
+
+def _timecode_string(frames: int, rate: Fraction) -> str:
+    base = max(1, round(rate))
+    seconds, frame = divmod(frames, base)
+    minutes, second = divmod(seconds, 60)
+    hour, minute = divmod(minutes, 60)
+    return f"{hour:02d}:{minute:02d}:{second:02d}:{frame:02d}"
+
+
+def export_edl(project: dict, plan: dict, path: str | Path) -> Path:
+    """CMX 3600 video edit list: the lowest common denominator for DaVinci Resolve and others.
+
+    Record timecode starts at 01:00:00:00 (the usual NLE default). Source
+    timecode counts from the first frame of every clip; the clip name is carried
+    in a ``FROM CLIP NAME`` comment so Resolve can relink by file name.
+    """
+    timeline = compile_timeline(project, plan)
+    rate = Fraction(timeline["fps_num"], timeline["fps_den"])
+    offset = round(rate) * 3600
+    lines = [f"TITLE: {timeline['name']}", "FCM: NON-DROP FRAME", ""]
+    for number, shot in enumerate(timeline["shots"], 1):
+        source_rate = Fraction(shot["source_fps_num"], shot["source_fps_den"])
+        name = shot["clip"].get("name") or Path(shot["clip"]["path"]).name
+        reel = "AX"
+        in_tc = _timecode_string(shot["source_in_frame"], source_rate)
+        out_tc = _timecode_string(shot["source_in_frame"] + shot["duration_frames"], source_rate)
+        lines.append(f"{number:03d}  {reel:<8} V     C        {in_tc} {out_tc} "
+                     f"{_timecode_string(offset + shot['start'], rate)} {_timecode_string(offset + shot['end'], rate)}")
+        lines.append(f"* FROM CLIP NAME: {name}")
+        lines.append("")
+    destination = Path(path).expanduser().resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(lines), encoding="utf-8")
+    return destination
 
 
 def export_otio(project: dict, plan: dict, path: str | Path) -> Path:

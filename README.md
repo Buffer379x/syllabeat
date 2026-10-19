@@ -2,7 +2,7 @@
 
 Eigenständige macOS-Desktop-App für Apple Silicon, die aus einem Song und einem Ordner voller Videoclips einen beatgenauen Musikvideo-Schnitt plant. GUI auf Deutsch, lokale Beat-/Gesangsanalyse, Ollama Vision, automatische oder manuelle KI-Regie und Timeline-Export für Final Cut Pro, Premiere, DaVinci Resolve & Co.
 
-**Version 0.1.0** · macOS 15+ · Apple Silicon
+**Version 0.2.0** · macOS 15+ · Apple Silicon
 
 ## Installation
 
@@ -20,7 +20,8 @@ Python, Homebrew oder Terminalbefehle sind nicht nötig. KI-Modelle (Whisper, Ol
 - **Songanalyse:** librosa-Beats inkl. Schnittraster (jeder 2./4. Beat, Verdoppeln, ms-Versatz); MLX Whisper mit Wortzeitstempeln; Zuordnung eigener Lyrics; Refrain-Erkennung.
 - **KI-Regie:** Ollama lokal, OpenAI Responses API (Structured Outputs, Key im Schlüsselbund) oder ChatGPT Web per Prompt-Zwischenablage; automatische Korrekturschleifen; lokaler Basisplan ohne Modell.
 - **Schnittkern:** Beat-IDs statt freier Zeiten, Quellgrenzen, Refrain-Vorlagen werden per Code exakt wiederholt, framegenaue Rundung ohne Drift.
-- **Export:** xmeml v4 (`timeline.xml`), FCPXML 1.6, OpenTimelineIO – jeweils mit vollständiger Musikspur.
+- **Export:** FCPXML 1.8 (Final Cut Pro), xmeml v4 und CMX-3600-EDL (DaVinci Resolve), OpenTimelineIO – XML-Formate mit vollständiger Musikspur.
+- **Schnittstil:** variable Cliplängen, schnellere Refrains, Ausschnitte aus verschiedenen Szenen eines Clips.
 - Atomare Projektsicherung (`.syllabeat`), Autosave, „Zuletzt geöffnet“, Fortschrittsanzeige und Abbrechen für alle Hintergrundaufgaben.
 
 Beat- und Gesangserkennung liefern Schätzwerte; alle Tabellen sind korrigierbar.
@@ -30,7 +31,7 @@ Beat- und Gesangserkennung liefern Schätzwerte; alle Tabellen sind korrigierbar
 Der Workflow [`.github/workflows/release.yml`](.github/workflows/release.yml) baut auf einem Apple-Silicon-Runner die App, führt Tests und den Selbsttest der gebauten App aus, erstellt `SyllaBeat-<version>.dmg` (+ SHA-256) und veröffentlicht sie als GitHub Release.
 
 - **Manuell:** *Actions → Release (macOS DMG) → Run workflow* (optional als Pre-release oder Entwurf).
-- **Per Tag:** Version in `syllabeat/__init__.py` setzen, dann `git tag v0.1.0 && git push origin v0.1.0`.
+- **Per Tag:** Version in `syllabeat/__init__.py` setzen, dann `git tag v0.2.0 && git push origin v0.2.0`.
 
 Bei jedem Push laufen zusätzlich schnelle Tests unter Linux ([`tests.yml`](.github/workflows/tests.yml)).
 

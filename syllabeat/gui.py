@@ -12,6 +12,7 @@ import uuid
 from PySide6.QtCore import Qt, QProcess, QProcessEnvironment, QSize, QTimer, QUrl, QEvent
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QGridLayout, QScrollArea,
     QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
     QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QDoubleSpinBox, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
@@ -19,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from . import APP_NAME, LEGACY_PROJECT_SUFFIXES, PROJECT_SUFFIX, __version__
 from .analysis import BEAT_GRID_MODES, VIDEO_EXTENSIONS, retime_beats
-from .storage import app_support, new_project, load_project, save_project, keychain_get, keychain_set, rename_preview, rename_clips, undo_rename, recover_pending_rename, recent_projects, remember_project
+from .storage import app_support, models_dir, default_cut_style, new_project, load_project, save_project, keychain_get, keychain_set, rename_preview, rename_clips, undo_rename, recover_pending_rename, recent_projects, remember_project
 from .planning import validate_plan, apply_repeats, compile_timeline, draft_plan
 from .director import build_prompt_parts, merge_plan_parts
 
@@ -32,17 +33,22 @@ QLabel#title { font-size:27px; font-weight:700; letter-spacing:-0.7px; }
 QLabel#subtitle { color:#93a3b5; font-size:13px; }
 QLabel#eyebrow { color:#70dec4; font-size:10px; font-weight:700; letter-spacing:2px; }
 QLabel#brand { font-size:20px; font-weight:700; }
+QLabel#cardtitle { font-size:14px; font-weight:700; color:#e7edf4; }
+QLabel#path { color:#93a3b5; font-size:12px; }
+QLabel#step { color:#70dec4; font-size:11px; font-weight:700; }
 QFrame#sidebar { background:#151c24; border-right:1px solid #293341; }
-QFrame#card { background:#19212b; border:1px solid #2c3948; border-radius:12px; }
-QPushButton { background:#25313f; border:1px solid #39495b; border-radius:7px; padding:9px 13px; font-weight:500; }
+QFrame#card { background:#17202a; border:1px solid #2a3746; border-radius:14px; }
+QFrame#card QLabel { background:transparent; }
+QFrame#card QLineEdit, QFrame#card QSpinBox, QFrame#card QComboBox { background:#111820; }
+QPushButton { background:#243040; border:1px solid #384a5f; border-radius:8px; padding:9px 14px; font-weight:500; }
 QPushButton:hover { background:#304157; border-color:#70859c; }
 QPushButton:pressed { background:#1c2834; }
 QPushButton:disabled { color:#647385; background:#1a222c; border-color:#293340; }
-QPushButton#primary { background:#76dfc3; color:#0b2922; border-color:#76dfc3; font-weight:700; }
+QPushButton#primary { background:#76dfc3; color:#0b2922; border-color:#76dfc3; font-weight:700; padding:9px 18px; }
 QPushButton#primary:hover { background:#9aeed8; }
 QPushButton#primary:disabled { background:#284c43; color:#75978d; border-color:#284c43; }
 QLineEdit, QPlainTextEdit, QSpinBox, QComboBox { background:#151c24; border:1px solid #344456; border-radius:6px; padding:8px; selection-background-color:#347a6b; }
-QLineEdit:focus, QPlainTextEdit:focus { border-color:#76dfc3; }
+QLineEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus { border-color:#76dfc3; }
 QPlainTextEdit { font-size:12px; }
 QComboBox::drop-down { border:0; width:25px; }
 QComboBox QAbstractItemView { background:#1e2936; selection-background-color:#34554f; }
@@ -56,7 +62,7 @@ QTableWidget::item { padding:6px; }
 QScrollArea { border:0; }
 QProgressBar { background:#23313e; border:0; border-radius:3px; height:6px; text-align:center; }
 QProgressBar::chunk { background:#76dfc3; border-radius:3px; }
-QCheckBox { spacing:8px; }
+QCheckBox { spacing:8px; background:transparent; }
 QCheckBox::indicator { width:16px; height:16px; border:1px solid #516276; border-radius:4px; background:#19222d; }
 QCheckBox::indicator:checked { background:#76dfc3; border-color:#76dfc3; }
 QSplitter::handle { background:#293747; }
@@ -125,18 +131,38 @@ def cell(widget, row, column):
 
 
 def app_icon():
-    pixmap = QPixmap(256, 256)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setBrush(QColor("#182b2b"))
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.drawRoundedRect(3, 3, 250, 250, 55, 55)
-    painter.setPen(QPen(QColor("#7ce8c8"), 15, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-    for x, height in [(59, 45), (93, 100), (127, 140), (161, 80), (195, 35)]:
-        painter.drawLine(x, 128 - height // 2, x, 128 + height // 2)
-    painter.end()
-    return QIcon(pixmap)
+    """The bundle's own .icns is the single source of truth inside the app.
+
+    Setting a different (painted) icon at start-up made the Dock icon change
+    right after launch, so the packaged app sets none. From source we load the
+    same artwork the .icns is built from.
+    """
+    if getattr(sys, "frozen", False):
+        return QIcon()
+    png = Path(__file__).resolve().parents[1] / "assets/icon-1024.png"
+    return QIcon(str(png)) if png.is_file() else QIcon()
+
+
+def logo_pixmap(size):
+    png = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1])) / "assets/icon-1024.png"
+    if not png.is_file():
+        png = Path(__file__).resolve().parents[1] / "assets/icon-1024.png"
+    pixmap = QPixmap(str(png)) if png.is_file() else QPixmap()
+    return pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation) if not pixmap.isNull() else pixmap
+
+
+def card(title=None, hint=None):
+    """A rounded group box; returns (frame, layout)."""
+    frame = QFrame()
+    frame.setObjectName("card")
+    layout = QVBoxLayout(frame)
+    layout.setContentsMargins(18, 16, 18, 16)
+    layout.setSpacing(10)
+    if title:
+        layout.addWidget(label(title, "cardtitle"))
+    if hint:
+        layout.addWidget(label(hint, "subtitle"))
+    return frame, layout
 
 
 # Approximate download sizes (GB) shown before a download starts.
@@ -147,12 +173,12 @@ MODEL_SIZES = {
 }
 
 
-def model_size_hint(model):
+def model_size_hint(model, config=None):
     import shutil
     model = model.strip()
     size = MODEL_SIZES.get(model) or MODEL_SIZES.get(model + ":latest")
     try:
-        free = shutil.disk_usage(app_support()).free / 1e9
+        free = shutil.disk_usage(models_dir(config)).free / 1e9
     except OSError:
         free = None
     parts = [f"Download ca. {size:.1f} GB" if size else "Downloadgröße unbekannt"]
@@ -196,15 +222,32 @@ class SettingsDialog(QDialog):
         form.addRow("OpenAI-Modell", self.openai)
         form.addRow("OpenAI API-Key", self.key)
         form.addRow("", self.remember)
+        self.models = QLineEdit(str(models_dir(config)))
+        self.models.setReadOnly(True)
+        choose = QPushButton("Ändern …")
+        choose.clicked.connect(self._choose_models)
+        reveal = QPushButton("Im Finder")
+        reveal.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(self.models.text())))
+        folder_row = QHBoxLayout()
+        folder_row.addWidget(self.models, 1)
+        folder_row.addWidget(choose)
+        folder_row.addWidget(reveal)
+        form.addRow("Modell-Ordner", folder_row)
         layout.addLayout(form)
+        layout.addWidget(label("Hierhin werden Whisper- und Ollama-Modelle heruntergeladen (mehrere GB). Bereits geladene Modelle werden nicht verschoben: kopiere sie bei Bedarf in den neuen Ordner (Unterordner „ollama“ und „huggingface“).", "subtitle"))
         layout.addWidget(label("Qwen Vision 7B benötigt etwa 6 GB Download plus Arbeitsspeicher. Für kleinere Macs kannst du qwen2.5vl:3b wählen. API-Aufrufe werden über deinen OpenAI-Account abgerechnet.", "subtitle"))
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+    def _choose_models(self):
+        folder = QFileDialog.getExistingDirectory(self, "Ordner für heruntergeladene Modelle", self.models.text())
+        if folder:
+            self.models.setText(folder)
+
     def values(self):
-        return {"ollama_url": self.url.text().strip().rstrip("/"), "director_model": self.director.text().strip(), "vision_model": self.vision.text().strip(), "whisper_model": self.whisper.currentText().strip(), "openai_model": self.openai.text().strip()}
+        return {"models_dir": self.models.text().strip(), "ollama_url": self.url.text().strip().rstrip("/"), "director_model": self.director.text().strip(), "vision_model": self.vision.text().strip(), "whisper_model": self.whisper.currentText().strip(), "openai_model": self.openai.text().strip()}
 
 
 class MainWindow(QMainWindow):
@@ -253,8 +296,17 @@ class MainWindow(QMainWindow):
         side = QVBoxLayout(sidebar)
         side.setContentsMargins(20, 28, 20, 22)
         side.setSpacing(14)
-        side.addWidget(label("LOCAL MUSIC STUDIO", "eyebrow"))
-        side.addWidget(label(APP_NAME, "brand"))
+        head = QHBoxLayout()
+        logo = QLabel()
+        logo.setPixmap(logo_pixmap(44))
+        logo.setFixedSize(46, 46)
+        head.addWidget(logo)
+        titles = QVBoxLayout()
+        titles.setSpacing(0)
+        titles.addWidget(label(APP_NAME, "brand", wrap=False))
+        titles.addWidget(label("MUSIKVIDEOS", "eyebrow", wrap=False))
+        head.addLayout(titles, 1)
+        side.addLayout(head)
         side.addWidget(label("Jede Silbe. Jeder Beat.", "subtitle"))
         self.navigation = QListWidget()
         self.navigation.addItems([f"{i:02d}   {name}" for i, name in enumerate(STEPS, 1)])
@@ -354,8 +406,10 @@ class MainWindow(QMainWindow):
         form.addRow("Timeline", settings)
         self.media_hint = label("Tipp: Du kannst einen Videoordner, eine Audiodatei oder ein Projekt auch direkt ins Fenster ziehen.", "subtitle")
         form.addRow("", self.media_hint)
-        layout.addLayout(form)
-        layout.addWidget(label("Eigene Songtexte · optional"))
+        media_card, media_layout = card("Material und Format")
+        media_layout.addLayout(form)
+        layout.addWidget(media_card)
+        layout.addWidget(label("Eigene Songtexte · optional", "cardtitle"))
         self.lyrics_edit = QPlainTextEdit()
         self.lyrics_edit.setPlaceholderText("Songtext hier einfügen. Leerzeilen trennen Abschnitte; [Refrain] und [Strophe] helfen bei der Zuordnung.\n\nOhne Vorlage transkribiert die App den Gesang selbst.")
         self.lyrics_edit.textChanged.connect(self._lyrics_changed)
@@ -506,6 +560,37 @@ class MainWindow(QMainWindow):
 
     def _director_page(self):
         page, layout = self._page("KREATIVE ENTSCHEIDUNGEN", "Deine KI-Regie", "Clipnamen, Beschreibungen und Songtexte bestimmen die Bildauswahl. Die App prüft alle Schnittregeln.")
+        style_card, style_layout = card("Schnittstil", "Gilt für den lokalen Basisplan und wird der KI-Regie als Vorgabe mitgegeben.")
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(8)
+        self.variation = QComboBox()
+        for key, title in [("gleichmaessig", "Gleichmäßig"), ("abwechslungsreich", "Abwechslungsreich"), ("wild", "Wild")]:
+            self.variation.addItem(title, key)
+        self.verse_beats = QSpinBox()
+        self.verse_beats.setRange(1, 32)
+        self.verse_beats.setSuffix(" Beats")
+        self.chorus_beats = QSpinBox()
+        self.chorus_beats.setRange(1, 32)
+        self.chorus_beats.setSuffix(" Beats")
+        self.chorus_faster = QCheckBox("Refrain schneller schneiden")
+        self.dice_button = button("Neu würfeln", self.reroll_style)
+        grid.addWidget(label("Variation der Cliplängen", wrap=False), 0, 0)
+        grid.addWidget(self.variation, 0, 1)
+        grid.addWidget(label("Strophe: Schnitt etwa alle", wrap=False), 0, 2)
+        grid.addWidget(self.verse_beats, 0, 3)
+        grid.addWidget(self.chorus_faster, 1, 0, 1, 2)
+        grid.addWidget(label("Refrain: Schnitt etwa alle", wrap=False), 1, 2)
+        grid.addWidget(self.chorus_beats, 1, 3)
+        grid.addWidget(self.dice_button, 0, 4, 2, 1)
+        grid.setColumnStretch(1, 1)
+        style_layout.addLayout(grid)
+        for widget in (self.variation,):
+            widget.currentIndexChanged.connect(self._style_changed)
+        for widget in (self.verse_beats, self.chorus_beats):
+            widget.valueChanged.connect(self._style_changed)
+        self.chorus_faster.toggled.connect(self._style_changed)
+        layout.addWidget(style_card)
         row = QHBoxLayout()
         self.provider = QComboBox()
         self.provider.addItems(["Ollama", "OpenAI"])
@@ -542,15 +627,21 @@ class MainWindow(QMainWindow):
         self.shot_table.setToolTip("Doppelklick spielt den Song ab dieser Einstellung ab.")
         self.shot_table.cellDoubleClicked.connect(self._play_shot)
         layout.addWidget(self.shot_table, 1)
-        self.format_xml = QCheckBox("Final Cut Pro 7 XML · timeline.xml (xmeml v4)")
-        self.format_xml.setChecked(True)
-        self.format_otio = QCheckBox("OpenTimelineIO · timeline.otio")
-        self.format_otio.setChecked(True)
-        self.format_fcpxml = QCheckBox("Aktuelles Final Cut Pro · timeline.fcpxml")
+        formats_card, formats_layout = card("Exportformate", "Eine Bildspur plus der vollständige Song. Wähle das Programm, in dem du weiterarbeitest.")
+        self.format_fcpxml = QCheckBox("Final Cut Pro · timeline.fcpxml")
         self.format_fcpxml.setChecked(True)
-        layout.addWidget(self.format_xml)
-        layout.addWidget(self.format_otio)
-        layout.addWidget(self.format_fcpxml)
+        self.format_fcpxml.setToolTip("Final Cut Pro XML 1.8: Ablage → Import → XML …")
+        self.format_xml = QCheckBox("DaVinci Resolve / Premiere · timeline.xml")
+        self.format_xml.setChecked(True)
+        self.format_xml.setToolTip("FCP-7-XML (xmeml): in DaVinci Resolve Datei → Importieren → Timeline …")
+        self.format_edl = QCheckBox("DaVinci Resolve (nur Video) · timeline.edl")
+        self.format_edl.setChecked(True)
+        self.format_edl.setToolTip("CMX-3600-EDL als Rückfalloption; Resolve verknüpft die Clips über den Dateinamen. Der Song muss separat auf die Tonspur gelegt werden.")
+        self.format_otio = QCheckBox("OpenTimelineIO · timeline.otio")
+        self.format_otio.setChecked(False)
+        for box in (self.format_fcpxml, self.format_xml, self.format_edl, self.format_otio):
+            formats_layout.addWidget(box)
+        layout.addWidget(formats_card)
         row = QHBoxLayout()
         row.addWidget(button("Schnittplan prüfen", self.accept_plan))
         row.addWidget(button("Song ab Auswahl abspielen", lambda: self._play_shot(self.shot_table.currentRow(), 0)))
@@ -602,7 +693,7 @@ class MainWindow(QMainWindow):
 
     def show_about(self):
         QMessageBox.about(self, f"Über {APP_NAME}", f"<h3>{APP_NAME} {__version__}</h3><p>Lokale, beatgenaue Musikvideo-Regie für macOS auf Apple Silicon.</p>"
-                          "<p>Beat-Analyse mit librosa, Gesang mit MLX Whisper, Bildbeschreibung mit Ollama Vision; Export als FCP7-XML, FCPXML und OpenTimelineIO.</p>")
+                          "<p>Beat-Analyse mit librosa, Gesang mit MLX Whisper, Bildbeschreibung mit Ollama Vision; Export für Final Cut Pro (FCPXML), DaVinci Resolve (XML, EDL) und OpenTimelineIO.</p>")
 
     def _notify(self, message):
         self.status_text.setText(message)
@@ -671,6 +762,9 @@ class MainWindow(QMainWindow):
                 name: [[cell(widget,r,c) for c in range(widget.columnCount())] for r in range(widget.rowCount())]
                 for name,widget in [("beats",self.beat_table),("lines",self.line_table),("sections",self.section_table)]
             }
+        style = self.project.get("cut_style") or default_cut_style()
+        self.project["cut_style"] = {**style, "variation": self.variation.currentData(), "verse_beats": self.verse_beats.value(),
+                                     "chorus_beats": self.chorus_beats.value(), "chorus_faster": self.chorus_faster.isChecked()}
         num, den = self.fps.currentData()
         self.project["timeline"] = {"fps_num": num, "fps_den": den, "width": self.width.value(), "height": self.height.value()}
 
@@ -718,6 +812,12 @@ class MainWindow(QMainWindow):
         for index in range(self.fps.count()):
             if tuple(self.fps.itemData(index)) == target:
                 self.fps.setCurrentIndex(index)
+        style = {**default_cut_style(), **(p.get("cut_style") or {})}
+        self.variation.setCurrentIndex(max(0, self.variation.findData(style["variation"])))
+        self.verse_beats.setValue(style["verse_beats"])
+        self.chorus_beats.setValue(style["chorus_beats"])
+        self.chorus_faster.setChecked(style["chorus_faster"])
+        self.chorus_beats.setEnabled(style["chorus_faster"])
         self.width.setValue(tl.get("width",1920))
         self.height.setValue(tl.get("height",1080))
         self._sync_preset()
@@ -962,7 +1062,11 @@ class MainWindow(QMainWindow):
         clip = self._selected_clip()
         if clip:
             warnings = clip.get("metadata_warnings", [])
-            self.clip_detail.setText((clip.get("description") or clip["path"])+("\n"+"\n".join(warnings[:2]) if warnings else ""))
+            scenes = [x for x in clip.get("segments", []) if isinstance(x, dict)]
+            scene_text = ""
+            if len(scenes) > 1:
+                scene_text = "\nSzenen: " + " · ".join(f"{x['start']:.1f}–{x['end']:.1f} s" + (f" {x['description']}" if x.get("description") else "") for x in scenes[:6]) + (" …" if len(scenes) > 6 else "")
+            self.clip_detail.setText((clip.get("description") or clip["path"])+scene_text+("\n"+"\n".join(warnings[:2]) if warnings else ""))
             self.clip_detail.setToolTip("\n".join(warnings))
             samples = clip.get("samples") or []
             if samples and samples[0].get("image"):
@@ -1189,6 +1293,19 @@ class MainWindow(QMainWindow):
         except Exception as error:
             self._error(error)
 
+    def _style_changed(self, *_):
+        if self.updating:
+            return
+        self._sync_form()
+        self.chorus_beats.setEnabled(self.chorus_faster.isChecked())
+        self._edited()
+
+    def reroll_style(self):
+        import random
+        self.project.setdefault("cut_style", default_cut_style())["seed"] = random.randint(1, 2 ** 31 - 1)
+        self._edited()
+        self.basic_plan()
+
     def generate_plan(self):
         if not self._ready_for_plan():
             return
@@ -1244,7 +1361,7 @@ class MainWindow(QMainWindow):
         if not self.accept_plan():
             return
         formats=[]
-        for check,name in [(self.format_xml,"timeline.xml"),(self.format_otio,"timeline.otio"),(self.format_fcpxml,"timeline.fcpxml")]:
+        for check,name in [(self.format_fcpxml,"timeline.fcpxml"),(self.format_xml,"timeline.xml"),(self.format_edl,"timeline.edl"),(self.format_otio,"timeline.otio")]:
             if check.isChecked():
                 formats.append(name)
         if not formats:
@@ -1310,8 +1427,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(name)
         size_hint=label("","subtitle")
         layout.addWidget(size_hint)
+        layout.addWidget(label(f"Speicherort: {models_dir(self.config)}  (änderbar unter Modelle & Einstellungen)","path"))
         def update_size(*_):
-            size_hint.setText(model_size_hint(name.text()))
+            size_hint.setText(model_size_hint(name.text(),self.config))
         name.textChanged.connect(update_size)
         update_size()
         kind.currentTextChanged.connect(lambda x:name.setText(self.config.get("whisper_model","mlx-community/whisper-small-mlx") if x=="Whisper" else self.config.get("vision_model","qwen2.5vl:7b")))
@@ -1346,6 +1464,8 @@ class MainWindow(QMainWindow):
         if self.api_key and action=="direct" and payload.get("provider")=="OpenAI":
             environment.insert("VC_OPENAI_KEY",self.api_key)
         environment.insert("PYTHONUNBUFFERED","1")
+        if self.config.get("models_dir"):
+            environment.insert("VC_MODEL_DIR",self.config["models_dir"])
         process.setProcessEnvironment(environment)
         process.readyReadStandardOutput.connect(self._read_progress)
         process.readyReadStandardError.connect(self._read_error_output)

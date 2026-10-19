@@ -37,9 +37,13 @@ def run_worker(request_path: Path, response_path: Path) -> int:
             from .analysis import extract_frames
             result = extract_frames(p["clip"], count=p.get("count", 3))
         elif action == "audio":
+            from .storage import configure_model_cache
+            configure_model_cache()
             from .analysis import analyze_audio
             result = analyze_audio(p["path"], p.get("lyrics", ""), p["model"], progress=progress, cancel=cancel)
         elif action == "whisper_model":
+            from .storage import configure_model_cache
+            configure_model_cache()
             from huggingface_hub import snapshot_download
             progress("Whisper-Modell wird heruntergeladen; bereits vorhandene Dateien werden wiederverwendet …", 0.05)
             result = {"path": snapshot_download(repo_id=p["model"], allow_patterns=["config.json", "weights.safetensors", "weights.npz", "README.md"])}
@@ -92,12 +96,12 @@ def run_worker(request_path: Path, response_path: Path) -> int:
                 clip["source_path"]=original["path"]
             result = {"clips":converted,"folder":str(destination)}
         elif action == "export":
-            from .exporters import export_xmeml, export_otio, export_fcpxml
+            from .exporters import export_xmeml, export_otio, export_fcpxml, export_edl
             project, plan = p["project"], p["project"]["plan"]
             destination = Path(p["destination"])
             destination.mkdir(parents=True, exist_ok=True)
             result = []
-            for name, function in [("timeline.xml", export_xmeml), ("timeline.otio", export_otio), ("timeline.fcpxml", export_fcpxml)]:
+            for name, function in [("timeline.xml", export_xmeml), ("timeline.otio", export_otio), ("timeline.fcpxml", export_fcpxml), ("timeline.edl", export_edl)]:
                 if name in p["formats"]:
                     progress(f"Exportiere {name} …", len(result) / max(1, len(p["formats"])))
                     function(project, plan, destination / name)

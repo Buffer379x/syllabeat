@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 – 2026-10-19
+
+### Behoben
+- **Final Cut Pro:** Der Import von `timeline.fcpxml` scheiterte mit „Ein unerwarteter Wert wurde festgestellt (format=\"timeline-format\")“. Die Datei folgt jetzt dem Aufbau, den Final Cut Pro selbst schreibt (FCPXML 1.8, Standardnamen für Formate, einfache IDs, keine überflüssigen Attribute).
+- **Icon:** Das Programm-Icon wechselte direkt nach dem Start, weil die App ein zweites, gezeichnetes Icon setzte. Es gilt nur noch das Icon des App-Pakets.
+
+### Neu
+- **DaVinci Resolve:** Export als FCP-7-XML (`timeline.xml`) und als CMX-3600-EDL (`timeline.edl`, nur Video) zusätzlich zu FCPXML. Der Export zeigt, welches Format für welches Programm gedacht ist.
+- **Szenenerkennung:** Beim Einlesen wird jeder Clip in Szenen zerlegt (Schnitte per Farbhistogramm, lange Einstellungen in Teile ≤ 5 s). Die Vision-Analyse beschreibt jede Szene; die Szenen stehen im Katalog und im Prompt.
+- **Schnittstil** (Seite „KI-Regie“): Variation der Cliplängen (gleichmäßig / abwechslungsreich / wild), Beats pro Schnitt für Strophe und Refrain, „Refrain schneller schneiden“, „Neu würfeln“.
+- Der Basisplan nutzt Ausschnitte aus allen Szenen eines Clips statt immer ab Sekunde 0; Wiederholungen eines Refrains bleiben exakte Kopien. Die KI-Prompts enthalten Szenen und Schnittstil.
+- **Modell-Ordner:** Speicherort für Whisper- und Ollama-Modelle ist einstellbar (Modelle & Einstellungen) und wird im Download-Dialog angezeigt. Whisper-Modelle liegen jetzt im selben Ordner (`…/models/huggingface`) statt im Standard-Cache von Hugging Face und werden dadurch einmal neu geladen.
+
+### Geändert
+- Überarbeitete Oberfläche: Logo in der Seitenleiste, Karten für Gruppen, ruhigere Bedienelemente.
+- Projektdateien erhalten den Abschnitt `cut_style`; ältere Projekte werden unverändert geöffnet. Clips ohne Szenen werden beim nächsten „Ordner neu einlesen“ ergänzt.
+
 ## 0.1.0 – 2026-10-19
 
 Erste veröffentlichte Version unter dem Namen **SyllaBeat** (vorher interner Entwicklungsstand „Video Creator 1.0.0“).
