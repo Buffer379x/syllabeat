@@ -238,7 +238,7 @@ def export_fcpxml(project: dict, plan: dict, path: str | Path) -> Path:
          src=media_url(audio["path"]), start="0s", duration=_time(audio_duration), hasVideo="0", hasAudio="1",
          audioSources="1", audioChannels=str(max(1, min(2, int(audio.get("channels", 2))))), audioRate=sample_rate)
     library = _sub(root, "library")
-    event = _sub(library, "event", name="Video Creator")
+    event = _sub(library, "event", name="SyllaBeat")
     project_element = _sub(event, "project", name=timeline["name"])
     sequence = _sub(project_element, "sequence", format="timeline-format", duration=_time(timeline["duration_frames"] * frame), tcStart="0s", tcFormat="NDF", audioLayout="stereo", audioRate="48k")
     spine = _sub(sequence, "spine")
@@ -264,7 +264,7 @@ def export_otio(project: dict, plan: dict, path: str | Path) -> Path:
     rate = timeline_data["fps"]
     rt, tr = otio.opentime.RationalTime, otio.opentime.TimeRange
     timeline = otio.schema.Timeline(name=timeline_data["name"], global_start_time=rt(0, rate))
-    timeline.metadata["VideoCreator"] = {"fps_num": timeline_data["fps_num"], "fps_den": timeline_data["fps_den"], "width": timeline_data["width"], "height": timeline_data["height"]}
+    timeline.metadata["SyllaBeat"] = {"fps_num": timeline_data["fps_num"], "fps_den": timeline_data["fps_den"], "width": timeline_data["width"], "height": timeline_data["height"]}
     audio_track = otio.schema.Track(name="Song", kind=otio.schema.TrackKind.Audio)
     video_track = otio.schema.Track(name="Video", kind=otio.schema.TrackKind.Video)
     audio = timeline_data["audio"]
@@ -281,7 +281,7 @@ def export_otio(project: dict, plan: dict, path: str | Path) -> Path:
         item = otio.schema.Clip(name=shot["clip"].get("name") or Path(shot["clip"]["path"]).name,
                                 media_reference=reference,
                                 source_range=tr(rt(source_start, rate), rt(shot["duration_frames"], rate)))
-        item.metadata["VideoCreator"] = {"clip_id": shot["clip_id"], "start_beat": shot["start_beat"], "end_beat": shot["end_beat"], "source_fps_num": shot["source_fps_num"], "source_fps_den": shot["source_fps_den"]}
+        item.metadata["SyllaBeat"] = {"clip_id": shot["clip_id"], "start_beat": shot["start_beat"], "end_beat": shot["end_beat"], "source_fps_num": shot["source_fps_num"], "source_fps_den": shot["source_fps_den"]}
         video_track.append(item)
     timeline.tracks.extend([audio_track, video_track])
     destination = Path(path).expanduser().resolve()

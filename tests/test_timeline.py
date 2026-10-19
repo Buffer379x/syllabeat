@@ -10,8 +10,8 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from videocreator.exporters import export_fcpxml, export_otio, export_xmeml, media_url
-from videocreator.planning import (
+from syllabeat.exporters import export_fcpxml, export_otio, export_xmeml, media_url
+from syllabeat.planning import (
     PlanError, apply_repeats, beat_boundaries, build_prompt, compile_timeline,
     draft_plan, parse_plan, plan_schema, validate_plan,
 )

@@ -14,7 +14,12 @@ __pycache__/
 assets/bin/
 assets/downloads/
 
+# Beim Build erzeugt (scripts/build.py)
+assets/licenses/
+assets/*.icns
+
 # Projekt- und Laufzeitdaten
+*.syllabeat
 *.vcproject
 autosave.json
 

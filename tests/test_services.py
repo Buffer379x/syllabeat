@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 from unittest.mock import MagicMock
 
-from videocreator import services, storage
+from syllabeat import services, storage
 
 
 class MockOllama(BaseHTTPRequestHandler):
@@ -177,7 +177,7 @@ class ServicesTests(unittest.TestCase):
             "tags": ["Strand", "Paar", "Abend"], "filename_suggestion": "paar_am_strand",
         })
         clips = [{"id": "unchanged-id", "path": "/tmp/Original.mov", "duration": 10}]
-        with patch("videocreator.analysis.extract_frames", return_value=[{"time": 2, "image": "YWJj"}]):
+        with patch("syllabeat.analysis.extract_frames", return_value=[{"time": 2, "image": "YWJj"}]):
             result = services.analyze_vision(clips, manager)
         self.assertEqual(result[0]["id"], "unchanged-id")
         self.assertEqual(result[0]["path"], clips[0]["path"])

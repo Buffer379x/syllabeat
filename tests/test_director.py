@@ -1,11 +1,10 @@
 """Provider-free integration tests for partitioning, correction and manual plans."""
 
-import copy
 import json
 import unittest
 
-from videocreator.director import build_prompt_parts, generate_project_plan, merge_plan_parts
-from videocreator.planning import PlanError, validate_plan
+from syllabeat.director import build_prompt_parts, generate_project_plan, merge_plan_parts
+from syllabeat.planning import PlanError, validate_plan
 
 
 def fixture(intervals=8):
@@ -167,7 +166,7 @@ class AutomaticDirectorTests(unittest.TestCase):
         self.assertEqual(validate_plan(p, result), [])
 
     def test_unicode_and_repair_prompts_fit_the_local_context_byte_budget(self):
-        from videocreator.services import _context_options
+        from syllabeat.services import _context_options
         p, calls = fixture(), []
         p["clips"] = [{**p["clips"][0], "id": f"clip-{i}", "description": "夕焼けの海と空" * 300} for i in range(30)]
         def generate(prompt, schema):

@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 import signal
 import subprocess
-import sys
 import traceback
 
 
@@ -57,14 +56,14 @@ def run_worker(request_path: Path, response_path: Path) -> int:
                 elif action == "pull":
                     result = manager.pull_model(p["model"], progress=progress, cancel=cancel)
                 elif action == "vision":
-                    result = analyze_vision(p["clips"], manager, p.get("model", "qwen2.5vl:7b"), p.get("frame_count", 3), progress=progress, cancel=cancel)
+                    result = analyze_vision(p["clips"], manager, p.get("model", "qwen2.5vl:7b"), p.get("frame_count", 3), progress=progress, cancel=cancel, only_missing=bool(p.get("only_missing")))
                 else:
                     from .director import generate_project_plan
                     result = generate_project_plan(p["project"], lambda prompt,schema: manager.generate(prompt, p["model"], schema=schema, progress=progress, cancel=cancel), progress=progress, cancel=cancel)
         elif action == "normalize":
             from .analysis import find_binary, scan_clips
             import uuid
-            destination = Path(p["destination"]) / ("Video Creator CFR " + uuid.uuid4().hex[:8])
+            destination = Path(p["destination"]) / ("SyllaBeat CFR " + uuid.uuid4().hex[:8])
             destination.mkdir(parents=True, exist_ok=False)
             clips = p["clips"]
             originals = {}

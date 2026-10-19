@@ -1,0 +1,135 @@
+name: Release (macOS DMG)
+
+# Builds SyllaBeat.app on Apple Silicon, runs the test suite and the bundled
+# self-test, packs SyllaBeat-<version>.dmg and publishes it as a GitHub Release.
+#
+# Start it manually (Actions → "Release (macOS DMG)" → "Run workflow") or by
+# pushing a tag that matches the app version, e.g. `git tag v0.1.0 && git push --tags`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Als Vorabversion (Pre-release) markieren"
+        type: boolean
+        default: true
+      draft:
+        description: "Nur als Entwurf anlegen (nicht veröffentlichen)"
+        type: boolean
+        default: false
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build, test & publish
+    runs-on: macos-15          # Apple Silicon (arm64) runner
+    timeout-minutes: 150
+    env:
+      CI: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: meta
+        run: |
+          VERSION=$(python3 -c "import re,pathlib;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"',pathlib.Path('syllabeat/__init__.py').read_text()).group(1))")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$VERSION" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zur App-Version $VERSION (syllabeat/__init__.py)."
+            exit 1
+          fi
+          echo "SyllaBeat $VERSION"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Cache downloaded runtimes (ffmpeg, ffprobe, Ollama)
+        uses: actions/cache@v4
+        with:
+          path: assets/downloads
+          key: runtimes-${{ hashFiles('assets/binaries.json') }}
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --only-binary=:all: -r requirements.lock
+
+      - name: Fetch verified binaries
+        run: python scripts/fetch_binaries.py --fallback-latest
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Build app and DMG
+        env:
+          SYLLABEAT_BUILD_NUMBER: ${{ github.run_number }}
+        run: python scripts/build.py
+
+      - name: Self-test of the bundled app
+        run: |
+          mkdir -p .build/selftest-data
+          VC_DATA_DIR="$PWD/.build/selftest-data" VC_SELFTEST_OPTIONAL=mlx_whisper \
+            "dist/SyllaBeat.app/Contents/MacOS/SyllaBeat" --self-test .build/self-test.json
+          python -c "import json;d=json.load(open('.build/self-test.json'));[print(('OK  ' if v['ok'] else 'FEHLT ')+k) for k,v in d['checks'].items()];assert d['ok']"
+
+      - name: Checksum
+        id: dmg
+        run: |
+          DMG="dist/SyllaBeat-${{ steps.meta.outputs.version }}.dmg"
+          test -f "$DMG"
+          (cd dist && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
+          ls -lh dist/*.dmg
+          echo "path=$DMG" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SyllaBeat-${{ steps.meta.outputs.version }}
+          path: |
+            ${{ steps.dmg.outputs.path }}
+            ${{ steps.dmg.outputs.path }}.sha256
+            .build/self-test.json
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          DMG: ${{ steps.dmg.outputs.path }}
+          PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || 'false' }}
+          DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || 'false' }}
+        run: |
+          NOTES=".build/release-notes.md"
+          {
+            echo "## SyllaBeat $VERSION"
+            echo
+            echo "macOS 15 oder neuer · Apple Silicon. DMG öffnen und **SyllaBeat** in den Programme-Ordner ziehen."
+            echo
+            echo "> Die App ist ad-hoc signiert (nicht notarisiert). Beim ersten Start: Rechtsklick auf SyllaBeat → **Öffnen**, oder unter *Systemeinstellungen → Datenschutz & Sicherheit* „Dennoch öffnen“ wählen."
+            echo
+            echo "SHA-256: \`$(cut -d' ' -f1 "$DMG.sha256")\`"
+          } > "$NOTES"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$DMG" "$DMG.sha256" --clobber
+          else
+            FLAGS=()
+            [[ "$PRERELEASE" == "true" ]] && FLAGS+=(--prerelease)
+            [[ "$DRAFT" == "true" ]] && FLAGS+=(--draft)
+            gh release create "$TAG" "$DMG" "$DMG.sha256" --target "$GITHUB_SHA" \
+              --title "SyllaBeat $VERSION" --notes-file "$NOTES" --generate-notes "${FLAGS[@]}"
+          fi

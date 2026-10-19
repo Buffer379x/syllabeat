@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 import wave
 
-from videocreator.analysis import (
+from syllabeat.analysis import (
     AnalysisCancelled, AnalysisError, _check_cancel, _clean_words,
     _duration_from_probe, _fingerprint, _rate, _transcript_lines, _vfr_sample,
     align_lyrics, detect_sections, extract_frames, find_binary, normalize_text,
@@ -59,10 +59,10 @@ class MetadataTests(unittest.TestCase):
         fixed = {'frames': [{'best_effort_timestamp_time': str(i / 25)} for i in range(20)]}
         variable = {'frames': [{'best_effort_timestamp_time': str(i / 25 + (0.08 if i >= 10 else 0))}
                                for i in range(20)]}
-        with patch('videocreator.analysis.find_binary', return_value='/bundled/ffprobe'):
-            with patch('videocreator.analysis._run', return_value=json.dumps(fixed).encode()):
+        with patch('syllabeat.analysis.find_binary', return_value='/bundled/ffprobe'):
+            with patch('syllabeat.analysis._run', return_value=json.dumps(fixed).encode()):
                 self.assertFalse(_vfr_sample(Path('/clip.mov')))
-            with patch('videocreator.analysis._run', return_value=json.dumps(variable).encode()):
+            with patch('syllabeat.analysis._run', return_value=json.dumps(variable).encode()):
                 self.assertTrue(_vfr_sample(Path('/clip.mov')))
 
     def test_binary_override_and_missing_error(self):

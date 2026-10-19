@@ -135,7 +135,7 @@ def _request(url: str, payload: dict | None = None, *, headers: dict | None = No
                     pass
             threading.Thread(target=close_response, daemon=True).start()
 
-    threading.Thread(target=transport, daemon=True, name="VideoCreatorHTTP").start()
+    threading.Thread(target=transport, daemon=True, name="SyllaBeatHTTP").start()
     deadline = time.monotonic() + timeout
     try:
         while True:
@@ -236,7 +236,7 @@ class OllamaManager:
                 raise ServiceError("Die verwaltete Ollama-Laufzeit läuft, antwortet aber nicht. Bitte die App neu starten.")
             binary = self.find_binary()
             if binary is None:
-                raise ServiceError("Die mitgelieferte Ollama-Laufzeit fehlt. Bitte das vollständige Video Creator.app-Paket verwenden.")
+                raise ServiceError("Die mitgelieferte Ollama-Laufzeit fehlt. Bitte das vollständige SyllaBeat.app-Paket verwenden.")
             _progress(progress, "Lokale Ollama-Laufzeit wird gestartet …")
             env = os.environ.copy()
             parsed = urllib.parse.urlparse(self.base_url)
@@ -266,7 +266,7 @@ class OllamaManager:
             while time.monotonic() < deadline:
                 _check_cancel(cancel)
                 if self._process.poll() is not None:
-                    raise ServiceError("Die Ollama-Laufzeit wurde unerwartet beendet. Details stehen unter Application Support/Video Creator/logs/ollama.log.")
+                    raise ServiceError("Die Ollama-Laufzeit wurde unerwartet beendet. Details stehen unter Application Support/SyllaBeat/logs/ollama.log.")
                 try:
                     self._tags(cancel)
                     return
@@ -424,48 +424,92 @@ def _image_base64(value: Any) -> str:
     raise ServiceError("Ein extrahiertes Vorschaubild hat ein ungültiges Format.")
 
 
+def _step(progress: Callable | None, message: str, fraction: float) -> None:
+    """Report a determinate step; plain one-argument callbacks stay supported."""
+    if not progress:
+        return
+    try:
+        progress(message, min(1.0, max(0.0, fraction)))
+    except TypeError:
+        progress(message)
+
+
+def _describe_clip(clip: dict, manager: OllamaManager, model: str, frame_count: int,
+                   progress: Callable | None, cancel: Any) -> dict:
+    from .analysis import extract_frames
+    name = Path(clip["path"]).name
+    frames = extract_frames(clip, count=int(frame_count))
+    if not frames:
+        raise ServiceError(f"Aus {name} konnten keine Bilder gelesen werden.")
+    _check_cancel(cancel)
+    images = [_image_base64(frame["image"]) for frame in frames]
+    times = ", ".join(f"{float(frame['time']):.2f} s" for frame in frames)
+    prompt = (
+        "Du erstellst einen sachlichen Clip-Katalog für den Schnitt eines Musikvideos. "
+        "Die beigefügten Bilder stammen in zeitlicher Reihenfolge aus einem einzigen Clip "
+        f"(Positionen: {times}). Beschreibe ausschließlich sichtbare Inhalte auf Deutsch. "
+        "Erfinde keine Handlung zwischen den Bildern und keine Identitäten oder Gefühle von Personen. "
+        "description: ein kurzer prägnanter Satz zu Handlung, Motiv und visueller Stimmung; "
+        "action: sichtbare Bewegung/Handlung; motif: Hauptmotiv und Umgebung; mood: visuelle Atmosphäre; "
+        "tags: drei bis acht passende deutsche Suchbegriffe; filename_suggestion: drei bis sechs "
+        "beschreibende Wörter, durch Unterstriche getrennt, ohne Dateiendung, keine Pfade. "
+        "Antworte ausschließlich als JSON nach dem vorgegebenen Schema."
+    )
+    answer = manager.generate(prompt, model, schema=VISION_SCHEMA, images=images, progress=progress, cancel=cancel)
+    try:
+        vision = json.loads(answer)
+    except (TypeError, ValueError) as exc:
+        raise ServiceError(f"Die Bildanalyse für {name} ist kein gültiges JSON.") from exc
+    if not isinstance(vision, dict) or any(not isinstance(vision.get(field), str) for field in ("description", "action", "motif", "mood", "filename_suggestion")) or not isinstance(vision.get("tags"), list) or any(not isinstance(tag, str) for tag in vision["tags"]):
+        raise ServiceError(f"Die Bildanalyse für {name} hat nicht das erwartete Format.")
+    if not vision["description"].strip():
+        raise ServiceError(f"Die Bildanalyse für {name} enthält keine Beschreibung.")
+    vision["tags"] = [tag.strip() for tag in vision["tags"] if tag.strip()][:12]
+    clip["vision"] = vision
+    clip["description"] = vision["description"].strip()
+    clip["tags"] = vision["tags"]
+    clip["suggested_filename"] = vision["filename_suggestion"]
+    clip["vision_model"] = model
+    clip["vision_frames"] = [{"time": float(frame["time"])} for frame in frames]
+    clip.pop("vision_error", None)
+    return clip
+
+
 def analyze_vision(clips: list[dict], manager: OllamaManager, model: str = "qwen2.5vl:7b",
                    frame_count: int = 3, progress: Callable | None = None,
-                   cancel: Any = None) -> list[dict]:
-    from .analysis import extract_frames
+                   cancel: Any = None, only_missing: bool = False) -> list[dict]:
+    """Describe clips one by one.
+
+    A single unreadable clip or malformed model answer no longer discards the
+    whole run: the clip keeps its previous description and receives a
+    ``vision_error`` note. Only when every requested clip fails is an error raised.
+    ``only_missing`` skips clips that already carry a description (resume mode).
+    """
     if not 1 <= int(frame_count) <= 12:
         raise ValueError("Bitte zwischen 1 und 12 Frames pro Clip auswählen.")
     manager.ensure_running(progress, cancel)
     result = copy.deepcopy(clips)
-    for index, clip in enumerate(result, 1):
+    todo = [clip for clip in result if not (only_missing and str(clip.get("description", "")).strip())]
+    if not todo:
+        _step(progress, "Alle Clips haben bereits eine Beschreibung.", 1.0)
+        return result
+    failures: list[str] = []
+    for index, clip in enumerate(todo, 1):
         _check_cancel(cancel)
-        _progress(progress, f"Clip {index}/{len(result)}: {Path(clip['path']).name} – Vorschaubilder werden gelesen …")
-        frames = extract_frames(clip, count=int(frame_count))
-        if not frames:
-            raise ServiceError(f"Aus {Path(clip['path']).name} konnten keine Bilder gelesen werden.")
-        _check_cancel(cancel)
-        images = [_image_base64(frame["image"]) for frame in frames]
-        times = ", ".join(f"{float(frame['time']):.2f} s" for frame in frames)
-        prompt = (
-            "Du erstellst einen sachlichen Clip-Katalog für den Schnitt eines Musikvideos. "
-            "Die beigefügten Bilder stammen in zeitlicher Reihenfolge aus einem einzigen Clip "
-            f"(Positionen: {times}). Beschreibe ausschließlich sichtbare Inhalte auf Deutsch. "
-            "Erfinde keine Handlung zwischen den Bildern und keine Identitäten oder Gefühle von Personen. "
-            "description: ein kurzer prägnanter Satz zu Handlung, Motiv und visueller Stimmung; "
-            "action: sichtbare Bewegung/Handlung; motif: Hauptmotiv und Umgebung; mood: visuelle Atmosphäre; "
-            "tags: drei bis acht passende deutsche Suchbegriffe; filename_suggestion: drei bis sechs "
-            "beschreibende Wörter, durch Unterstriche getrennt, ohne Dateiendung, keine Pfade. "
-            "Antworte ausschließlich als JSON nach dem vorgegebenen Schema."
-        )
-        answer = manager.generate(prompt, model, schema=VISION_SCHEMA, images=images, progress=progress, cancel=cancel)
+        name = Path(clip["path"]).name
+        _step(progress, f"Clip {index}/{len(todo)}: {name} – Vorschaubilder werden gelesen …", (index - 1) / len(todo))
         try:
-            vision = json.loads(answer)
-        except (TypeError, ValueError) as exc:
-            raise ServiceError(f"Die Bildanalyse für {Path(clip['path']).name} ist kein gültiges JSON.") from exc
-        if not isinstance(vision, dict) or any(not isinstance(vision.get(field), str) for field in ("description", "action", "motif", "mood", "filename_suggestion")) or not isinstance(vision.get("tags"), list) or any(not isinstance(tag, str) for tag in vision["tags"]):
-            raise ServiceError(f"Die Bildanalyse für {Path(clip['path']).name} hat nicht das erwartete Format.")
-        if not vision["description"].strip():
-            raise ServiceError(f"Die Bildanalyse für {Path(clip['path']).name} enthält keine Beschreibung.")
-        clip["vision"] = vision
-        clip["description"] = vision["description"]
-        clip["tags"] = vision["tags"]
-        clip["suggested_filename"] = vision["filename_suggestion"]
-        clip["vision_model"] = model
-        clip["vision_frames"] = [{"time": float(frame["time"])} for frame in frames]
-        _progress(progress, f"Clip {index}/{len(result)}: {vision['description']}")
+            _describe_clip(clip, manager, model, frame_count, progress, cancel)
+        except CancelledError:
+            raise
+        except (ServiceError, OSError, ValueError, RuntimeError) as exc:
+            if isinstance(exc, ServiceError) and not str(exc).startswith("Die Bildanalyse") and "nicht erreichbar" in str(exc):
+                raise  # The server is gone; further clips would fail the same way.
+            clip["vision_error"] = str(exc)[:500]
+            failures.append(f"{name}: {exc}")
+            _step(progress, f"Clip {index}/{len(todo)} übersprungen: {exc}", index / len(todo))
+            continue
+        _step(progress, f"Clip {index}/{len(todo)}: {clip['description']}", index / len(todo))
+    if len(failures) == len(todo):
+        raise ServiceError("Kein Clip konnte beschrieben werden:\n" + "\n".join(failures[:5]))
     return result

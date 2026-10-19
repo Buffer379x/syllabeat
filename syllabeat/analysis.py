@@ -70,7 +70,7 @@ def find_binary(name: str) -> str:
     installed = shutil.which(name)
     if installed:
         return installed
-    raise AnalysisError(f'{name} fehlt im App-Paket. Bitte die vollständige Video Creator.app verwenden.')
+    raise AnalysisError(f'{name} fehlt im App-Paket. Bitte die vollständige SyllaBeat.app verwenden.')
 
 
 def _run(command: list[str], cancel: Cancel | None = None, timeout: float = 120) -> bytes:
@@ -249,6 +249,10 @@ def scan_clips(folder, existing_clips=None, progress=None, cancel=None) -> list[
             if previous and previous.get('id') in used_ids:
                 previous = None
             result = dict(previous or {})
+            if not result.get('samples'):
+                thumbnail = _thumbnail(capture, cv2, image, duration)
+                if thumbnail:
+                    result['samples'] = [thumbnail]
             identity = result.get('id') or uuid.uuid4().hex
             used_ids.add(identity)
             vfr = _vfr_sample(path, cancel)
@@ -288,6 +292,55 @@ def scan_clips(folder, existing_clips=None, progress=None, cancel=None) -> list[
     suffix = f' ({len(failures)} unlesbare Dateien übersprungen)' if failures else ''
     _progress(progress, f'{len(clips)} Clips eingelesen{suffix}.', 1)
     return clips
+
+
+def _thumbnail(capture, cv2, first_image, duration: float) -> dict | None:
+    """Small catalog preview from ~30 % into the clip (fade-ins make frame 0 black)."""
+    image, stamp = first_image, 0.0
+    try:
+        capture.set(cv2.CAP_PROP_POS_MSEC, duration * 300)
+        ok, frame = capture.read()
+        if ok and frame is not None:
+            image, stamp = frame, duration * 0.3
+        height, width = image.shape[:2]
+        scale = min(1.0, 320 / max(height, width))
+        if scale < 1:
+            image = cv2.resize(image, (max(1, round(width * scale)), max(1, round(height * scale))), interpolation=cv2.INTER_AREA)
+        success, encoded = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 72])
+    except Exception:  # A preview is optional; metadata must never fail because of it.
+        return None
+    if not success:
+        return None
+    return {'time': round(min(duration, stamp), 6), 'image': base64.b64encode(encoded.tobytes()).decode('ascii')}
+
+
+BEAT_GRID_MODES = {
+    'every_2': 'Jeden 2. Beat behalten',
+    'every_4': 'Nur Taktanfänge (jeder 4. Beat)',
+    'double': 'Beats verdoppeln (Zwischenschläge)',
+}
+
+
+def retime_beats(beats: list[float], mode: str, duration: float, offset: float = 0.0, phase: int = 0) -> list[float]:
+    """Edit-grid helpers for half/double tempo detection and latency correction.
+
+    ``phase`` chooses which beat of a group starts the grid (e.g. downbeat 1-4).
+    ``offset`` shifts every beat in seconds; results stay strictly inside the song.
+    """
+    clean = sorted({float(b) for b in beats if isinstance(b, (int, float)) and math.isfinite(b)})
+    if mode in ('every_2', 'every_4'):
+        step = 2 if mode == 'every_2' else 4
+        clean = clean[phase % step::step]
+    elif mode == 'double':
+        doubled = []
+        for a, b in zip(clean, clean[1:]):
+            doubled += [a, (a + b) / 2]
+        clean = doubled + clean[-1:]
+    elif mode != 'shift':
+        raise ValueError(f'Unbekannter Beat-Modus: {mode}')
+    if not math.isfinite(offset):
+        raise ValueError('Der Versatz muss eine endliche Zahl sein.')
+    return [round(t + offset, 6) for t in clean if 0 < t + offset < duration]
 
 
 def extract_frames(clip: dict, count: int = 3) -> list[dict]:

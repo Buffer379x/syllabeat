@@ -10,8 +10,9 @@ def configure_environment():
     root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
     binary_dir = root / "bin" if (root / "bin").exists() else root / "assets" / "bin"
     os.environ["PATH"] = str(binary_dir) + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin")
-    data = Path(os.environ.get("VC_DATA_DIR", Path.home() / "Library/Application Support/Video Creator"))
-    data.mkdir(parents=True, exist_ok=True)
+    from syllabeat.storage import app_support
+    data = app_support()
+    os.environ.setdefault("VC_DATA_DIR", str(data))  # Workers share the (migrated) folder.
     os.environ.setdefault("VC_MODEL_DIR", str(data / "models"))
     os.environ.setdefault("HF_HOME", str(data / "models" / "huggingface"))
     os.environ.setdefault("NUMBA_CACHE_DIR", str(data / "cache" / "numba"))
@@ -27,14 +28,14 @@ def configure_environment():
 def main():
     configure_environment()
     if len(sys.argv) > 1 and sys.argv[1] == "--worker":
-        from videocreator.worker import run_worker
+        from syllabeat.worker import run_worker
         return run_worker(Path(sys.argv[2]), Path(sys.argv[3]))
     if len(sys.argv) > 1 and sys.argv[1] == "--self-test":
-        from videocreator.diagnostics import self_test
+        from syllabeat.diagnostics import self_test
         return self_test(Path(sys.argv[2]) if len(sys.argv) > 2 else None)
     if len(sys.argv) > 1 and sys.argv[1] == "--ui-smoke":
         from PySide6.QtWidgets import QApplication
-        from videocreator.gui import MainWindow, STYLE
+        from syllabeat.gui import MainWindow, STYLE
         application=QApplication([])
         application.setStyle("Fusion")
         application.setStyleSheet(STYLE)
@@ -43,7 +44,7 @@ def main():
         application.processEvents()
         window.grab().save(sys.argv[2])
         return 0
-    from videocreator.gui import run_app
+    from syllabeat.gui import run_app
     return run_app(sys.argv)
 
 

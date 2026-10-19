@@ -4,24 +4,23 @@ from __future__ import annotations
 import base64
 import copy
 import json
-import os
 from pathlib import Path
 import sys
 import time
 import uuid
 
-from PySide6.QtCore import Qt, QProcess, QProcessEnvironment, QTimer, QUrl, QEvent
-from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtCore import Qt, QProcess, QProcessEnvironment, QSize, QTimer, QUrl, QEvent
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
-    QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea,
-    QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QDoubleSpinBox, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from . import __version__
-from .storage import app_support, new_project, load_project, save_project, keychain_get, keychain_set, rename_preview, rename_clips, undo_rename, recover_pending_rename
-from .planning import beat_boundaries, build_prompt, plan_schema, parse_plan, validate_plan, apply_repeats, compile_timeline, draft_plan
+from . import APP_NAME, LEGACY_PROJECT_SUFFIXES, PROJECT_SUFFIX, __version__
+from .analysis import BEAT_GRID_MODES, VIDEO_EXTENSIONS, retime_beats
+from .storage import app_support, new_project, load_project, save_project, keychain_get, keychain_set, rename_preview, rename_clips, undo_rename, recover_pending_rename, recent_projects, remember_project
+from .planning import validate_plan, apply_repeats, compile_timeline, draft_plan
 from .director import build_prompt_parts, merge_plan_parts
 
 
@@ -64,7 +63,21 @@ QSplitter::handle { background:#293747; }
 QMenuBar, QMenu { background:#19232e; }
 QMenu::item:selected { background:#294c47; }
 QToolTip { background:#253442; color:#ecf5fa; border:1px solid #567066; padding:5px; }
+QFrame#footer { background:#121820; border-top:1px solid #293341; }
+QFrame#dropzone { background:#16202a; border:1px dashed #3d5266; border-radius:10px; }
+QLabel#badge { background:#203a36; color:#94efd7; border-radius:9px; padding:3px 9px; font-size:11px; font-weight:600; }
+QLabel#warn { color:#f0c674; font-size:12px; }
+QLineEdit#search { padding:7px 10px; }
 """
+
+AUDIO_EXTENSIONS = frozenset({".mp3", ".wav", ".aiff", ".aif", ".m4a", ".flac", ".ogg", ".aac", ".opus"})
+PROJECT_SUFFIXES = (PROJECT_SUFFIX, *LEGACY_PROJECT_SUFFIXES)
+PROJECT_FILTER = f"{APP_NAME}-Projekt (*{PROJECT_SUFFIX} " + " ".join(f"*{s}" for s in LEGACY_PROJECT_SUFFIXES) + " *.json)"
+FORMAT_PRESETS = [
+    ("Full HD · 16:9", 1920, 1080), ("4K UHD · 16:9", 3840, 2160), ("HD 720p · 16:9", 1280, 720),
+    ("Hochformat · 9:16 (Reels/TikTok)", 1080, 1920), ("Quadrat · 1:1", 1080, 1080), ("Kino · 2,39:1", 1920, 804),
+]
+STEPS = ["Medien", "Clip-Katalog", "Songanalyse", "KI-Regie", "Schnitt & Export"]
 
 
 def label(text, name=None, wrap=True):
@@ -126,6 +139,36 @@ def app_icon():
     return QIcon(pixmap)
 
 
+# Approximate download sizes (GB) shown before a download starts.
+MODEL_SIZES = {
+    "qwen2.5vl:3b": 3.2, "qwen2.5vl:7b": 6.0, "qwen2.5vl:32b": 21.0, "qwen2.5:3b": 1.9, "qwen2.5:7b": 4.7,
+    "qwen2.5:14b": 9.0, "llama3.2-vision:11b": 7.8, "gemma3:4b": 3.3, "gemma3:12b": 8.1,
+    "mlx-community/whisper-tiny": 0.08, "mlx-community/whisper-small-mlx": 0.5, "mlx-community/whisper-large-v3-turbo": 1.6,
+}
+
+
+def model_size_hint(model):
+    import shutil
+    model = model.strip()
+    size = MODEL_SIZES.get(model) or MODEL_SIZES.get(model + ":latest")
+    try:
+        free = shutil.disk_usage(app_support()).free / 1e9
+    except OSError:
+        free = None
+    parts = [f"Download ca. {size:.1f} GB" if size else "Downloadgröße unbekannt"]
+    if free is not None:
+        parts.append(f"frei: {free:.0f} GB")
+    warning = " – zu wenig freier Speicher!" if size and free is not None and free < size * 1.2 else ""
+    return " · ".join(parts) + warning
+
+
+def thumbnail_icon(encoded):
+    pixmap = QPixmap()
+    if encoded and pixmap.loadFromData(base64.b64decode(encoded)):
+        return QIcon(pixmap.scaled(96, 54, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+    return QIcon()
+
+
 class SettingsDialog(QDialog):
     def __init__(self, config, parent):
         super().__init__(parent)
@@ -167,8 +210,9 @@ class SettingsDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Video Creator")
+        self.setWindowTitle(APP_NAME)
         self.setWindowIcon(app_icon())
+        self.setAcceptDrops(True)
         self.resize(1280, 860)
         self.setMinimumSize(1060, 740)
         self.project = new_project()
@@ -210,14 +254,16 @@ class MainWindow(QMainWindow):
         side.setContentsMargins(20, 28, 20, 22)
         side.setSpacing(14)
         side.addWidget(label("LOCAL MUSIC STUDIO", "eyebrow"))
-        side.addWidget(label("Video Creator", "brand"))
-        side.addWidget(label("Vom Song zur Timeline.", "subtitle"))
+        side.addWidget(label(APP_NAME, "brand"))
+        side.addWidget(label("Jede Silbe. Jeder Beat.", "subtitle"))
         self.navigation = QListWidget()
-        self.navigation.addItems(["01   Medien", "02   Clip-Katalog", "03   Songanalyse", "04   KI-Regie", "05   Schnitt & Export"])
+        self.navigation.addItems([f"{i:02d}   {name}" for i, name in enumerate(STEPS, 1)])
+        for row in range(self.navigation.count()):
+            self.navigation.item(row).setToolTip(f"{STEPS[row]} · ⌘{row + 1}")
         side.addWidget(self.navigation)
         self.project_summary = label("Neues Projekt", "subtitle")
         side.addWidget(self.project_summary)
-        side.addWidget(button("Modelle und Einstellungen", self.settings))
+        side.addWidget(button("Modelle && Einstellungen", self.settings))
         side.addWidget(label(f"Apple Silicon · Version {__version__}", "subtitle"))
         body.addWidget(sidebar)
         self.pages = QStackedWidget()
@@ -229,6 +275,7 @@ class MainWindow(QMainWindow):
         body.addWidget(self.pages, 1)
         root.addLayout(body, 1)
         footer = QFrame()
+        footer.setObjectName("footer")
         foot = QHBoxLayout(footer)
         foot.setContentsMargins(24, 12, 24, 12)
         self.status_text = label("Bereit. Wähle zuerst deinen Videoordner und den Song.", "subtitle")
@@ -260,7 +307,7 @@ class MainWindow(QMainWindow):
         page, layout = self._page("DEIN MATERIAL", "Ein Song. Deine Bilder.", "Wähle deine Medien. Analysen und Schnittpläne werden im Projekt gespeichert.")
         form = QFormLayout()
         form.setVerticalSpacing(12)
-        self.name_edit = QLineEdit("Mein Musikvideo")
+        self.name_edit = QLineEdit("Neues Musikvideo")
         self.name_edit.textEdited.connect(self._edited)
         form.addRow("Projektname", self.name_edit)
         self.folder_edit = QLineEdit()
@@ -289,13 +336,24 @@ class MainWindow(QMainWindow):
         self.height.setValue(1080)
         self.width.valueChanged.connect(self._timeline_changed)
         self.height.valueChanged.connect(self._timeline_changed)
+        self.format_preset = QComboBox()
+        for title, width, height in FORMAT_PRESETS:
+            self.format_preset.addItem(title, (width, height))
+        self.format_preset.addItem("Eigenes Format", None)
+        self.format_preset.activated.connect(self._preset_chosen)
+        self.width.setSuffix(" px")
+        self.height.setSuffix(" px")
+        self.width.setMinimumWidth(110)
+        self.height.setMinimumWidth(110)
         settings.addWidget(self.fps)
-        settings.addSpacing(12)
-        settings.addWidget(label("Breite", wrap=False))
+        settings.addWidget(self.format_preset, 1)
+        settings.addSpacing(8)
         settings.addWidget(self.width)
-        settings.addWidget(label("× Höhe", wrap=False))
+        settings.addWidget(label("×", wrap=False))
         settings.addWidget(self.height)
         form.addRow("Timeline", settings)
+        self.media_hint = label("Tipp: Du kannst einen Videoordner, eine Audiodatei oder ein Projekt auch direkt ins Fenster ziehen.", "subtitle")
+        form.addRow("", self.media_hint)
         layout.addLayout(form)
         layout.addWidget(label("Eigene Songtexte · optional"))
         self.lyrics_edit = QPlainTextEdit()
@@ -321,15 +379,31 @@ class MainWindow(QMainWindow):
         self.frame_count.setRange(1, 12)
         self.frame_count.setValue(3)
         row.addWidget(self.frame_count)
+        self.only_missing = QCheckBox("Nur Clips ohne Beschreibung")
+        self.only_missing.setToolTip("Setzt eine abgebrochene Analyse fort, ohne bereits beschriebene Clips erneut zu senden.")
+        row.addWidget(self.only_missing)
         row.addStretch()
         row.addWidget(button("Clips mit Vision analysieren", self.analyze_clips, True))
         layout.addLayout(row)
+        row = QHBoxLayout()
+        self.clip_search = QLineEdit()
+        self.clip_search.setObjectName("search")
+        self.clip_search.setPlaceholderText("Clips filtern: Dateiname, Beschreibung oder Tag …")
+        self.clip_search.setClearButtonEnabled(True)
+        self.clip_search.textChanged.connect(self._filter_clips)
+        row.addWidget(self.clip_search, 1)
+        self.catalog_badge = label("", "badge", wrap=False)
+        row.addWidget(self.catalog_badge)
+        layout.addLayout(row)
         self.clip_table = table(["Dateiname", "Dauer", "Auflösung · FPS", "Beschreibung"])
+        self.clip_table.setIconSize(QSize(72, 40))
+        self.clip_table.verticalHeader().setDefaultSectionSize(46)
         self.clip_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.clip_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.clip_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.clip_table.cellChanged.connect(self._clip_changed)
         self.clip_table.itemSelectionChanged.connect(self._select_clip)
+        self.clip_table.cellDoubleClicked.connect(lambda row, col: self.reveal_clip() if col == 0 else None)
         layout.addWidget(self.clip_table, 1)
         bottom = QHBoxLayout()
         self.thumbnail = label("Clip auswählen")
@@ -375,6 +449,29 @@ class MainWindow(QMainWindow):
         row.addWidget(button("+", lambda: self._add_row(self.beat_table, ["0.000"])))
         row.addWidget(button("−", lambda: self._remove_rows(self.beat_table)))
         b.addLayout(row)
+        b.addWidget(label("Schnittraster", wrap=False))
+        self.beat_mode = QComboBox()
+        for key, title in BEAT_GRID_MODES.items():
+            self.beat_mode.addItem(title, key)
+        self.beat_mode.setToolTip("Hilft, wenn librosa das halbe oder doppelte Tempo erkannt hat oder nur auf Takten geschnitten werden soll.")
+        b.addWidget(self.beat_mode)
+        row = QHBoxLayout()
+        self.beat_phase = QSpinBox()
+        self.beat_phase.setRange(1, 4)
+        self.beat_phase.setPrefix("ab Beat ")
+        self.beat_phase.setToolTip("Mit welchem Beat der Gruppe das Raster beginnt (z. B. Taktanfang).")
+        row.addWidget(self.beat_phase)
+        row.addWidget(button("Anwenden", self.apply_beat_grid))
+        b.addLayout(row)
+        row = QHBoxLayout()
+        self.beat_offset = QDoubleSpinBox()
+        self.beat_offset.setRange(-500, 500)
+        self.beat_offset.setDecimals(0)
+        self.beat_offset.setSuffix(" ms")
+        self.beat_offset.setToolTip("Alle Beats gemeinsam verschieben, z. B. wenn Schnitte durchgehend zu früh wirken.")
+        row.addWidget(self.beat_offset)
+        row.addWidget(button("Verschieben", self.shift_beats))
+        b.addLayout(row)
         split.addWidget(beats_box)
         text_box = QWidget()
         t = QVBoxLayout(text_box)
@@ -391,7 +488,7 @@ class MainWindow(QMainWindow):
         row.addStretch()
         t.addLayout(row)
         split.addWidget(text_box)
-        split.setSizes([180,650])
+        split.setSizes([230,600])
         layout.addWidget(split, 3)
         layout.addWidget(label("Songabschnitte · Wiederholung verweist auf die ID der ersten Sequenz"))
         self.section_table = table(["ID", "Bezeichnung", "Start", "Ende", "Wiederholung von"])
@@ -442,6 +539,8 @@ class MainWindow(QMainWindow):
         self.timeline_summary = label("Übernimm zuerst einen geprüften Schnittplan.", "subtitle")
         layout.addWidget(self.timeline_summary)
         self.shot_table = table(["Start", "Ende", "Clip", "Quelle ab", "Beats"])
+        self.shot_table.setToolTip("Doppelklick spielt den Song ab dieser Einstellung ab.")
+        self.shot_table.cellDoubleClicked.connect(self._play_shot)
         layout.addWidget(self.shot_table, 1)
         self.format_xml = QCheckBox("Final Cut Pro 7 XML · timeline.xml (xmeml v4)")
         self.format_xml.setChecked(True)
@@ -454,6 +553,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.format_fcpxml)
         row = QHBoxLayout()
         row.addWidget(button("Schnittplan prüfen", self.accept_plan))
+        row.addWidget(button("Song ab Auswahl abspielen", lambda: self._play_shot(self.shot_table.currentRow(), 0)))
         row.addStretch()
         row.addWidget(button("Projekt speichern", self.save_project))
         row.addWidget(button("Timeline exportieren …", self.export, True))
@@ -470,19 +570,46 @@ class MainWindow(QMainWindow):
             action.setShortcut(shortcut)
             action.triggered.connect(callback)
             menu.addAction(action)
+        self.recent_menu = menu.addMenu("Zuletzt geöffnet")
+        self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
         menu.addSeparator()
         menu.addAction("Beenden", self.close)
+        view = self.menuBar().addMenu("Darstellung")
+        for index, name in enumerate(STEPS):
+            action = QAction(f"{index + 1}  {name}", self)
+            action.setShortcut(QKeySequence(f"Ctrl+{index + 1}"))
+            action.triggered.connect(lambda _checked=False, row=index: self.navigation.setCurrentRow(row))
+            view.addAction(action)
         help_menu = self.menuBar().addMenu("Hilfe")
         help_menu.addAction("Bedienungsanleitung", self.show_help)
         help_menu.addAction("Modell herunterladen …", self.download_model)
         help_menu.addAction("Lokale Modelle anzeigen", self.list_models)
+        help_menu.addAction("Datenordner im Finder zeigen", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(app_support()))))
+        help_menu.addSeparator()
+        about = QAction(f"Über {APP_NAME}", self)
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+        about.triggered.connect(self.show_about)
+        help_menu.addAction(about)
+
+    def _fill_recent_menu(self):
+        self.recent_menu.clear()
+        items = recent_projects()
+        if not items:
+            self.recent_menu.addAction("Keine Projekte").setEnabled(False)
+            return
+        for path in items:
+            self.recent_menu.addAction(Path(path).name, lambda _checked=False, p=path: self.open_project_path(p)).setToolTip(path)
+
+    def show_about(self):
+        QMessageBox.about(self, f"Über {APP_NAME}", f"<h3>{APP_NAME} {__version__}</h3><p>Lokale, beatgenaue Musikvideo-Regie für macOS auf Apple Silicon.</p>"
+                          "<p>Beat-Analyse mit librosa, Gesang mit MLX Whisper, Bildbeschreibung mit Ollama Vision; Export als FCP7-XML, FCPXML und OpenTimelineIO.</p>")
 
     def _notify(self, message):
         self.status_text.setText(message)
         self.status_text.setToolTip(message)
 
     def _error(self, message, detail=None):
-        box = QMessageBox(QMessageBox.Icon.Warning, "Video Creator", str(message), QMessageBox.StandardButton.Ok, self)
+        box = QMessageBox(QMessageBox.Icon.Warning, APP_NAME, str(message), QMessageBox.StandardButton.Ok, self)
         if detail:
             box.setDetailedText(str(detail))
         box.exec()
@@ -491,7 +618,40 @@ class MainWindow(QMainWindow):
         if self.updating:
             return
         self.dirty = True
+        self._update_title()
         self.autosave_timer.start(1500)
+
+    def _update_title(self):
+        name = self.name_edit.text().strip() or self.project.get("name") or "Neues Musikvideo"
+        self.setWindowTitle(f"{name}[*] — {APP_NAME}")
+        self.setWindowModified(bool(self.dirty))
+        if self.project_path:
+            self.setWindowFilePath(str(self.project_path))
+
+    def _update_steps(self):
+        """Sidebar check marks show which steps are already done."""
+        p = self.project
+        audio = p.get("audio") or {}
+        done = [bool(p.get("clips") and p.get("audio_path")),
+                bool(p.get("clips")) and all(str(c.get("description", "")).strip() for c in p.get("clips", [])),
+                bool(audio.get("duration")), bool(p.get("plan")), bool(p.get("last_export"))]
+        for row, finished in enumerate(done):
+            item = self.navigation.item(row)
+            item.setText(f"{'✓' if finished else f'{row + 1:02d}'}   {STEPS[row]}")
+
+    def _preset_chosen(self, index):
+        size = self.format_preset.itemData(index)
+        if size:
+            self.updating = True
+            self.width.setValue(size[0])
+            self.height.setValue(size[1])
+            self.updating = False
+            self._timeline_changed()
+
+    def _sync_preset(self):
+        current = (self.width.value(), self.height.value())
+        index = next((i for i in range(self.format_preset.count()) if self.format_preset.itemData(i) and tuple(self.format_preset.itemData(i)) == current), self.format_preset.count() - 1)
+        self.format_preset.setCurrentIndex(index)
 
     def _lyrics_changed(self):
         if not self.updating:
@@ -499,11 +659,12 @@ class MainWindow(QMainWindow):
 
     def _timeline_changed(self, *_):
         if not self.updating:
+            self._sync_preset()
             self._edited()
             self._refresh_timeline()
 
     def _sync_form(self):
-        self.project.update(name=self.name_edit.text().strip() or "Mein Musikvideo", lyrics=self.lyrics_edit.toPlainText())
+        self.project.update(name=self.name_edit.text().strip() or "Neues Musikvideo", lyrics=self.lyrics_edit.toPlainText())
         self.project["plan_draft"] = self.plan_edit.toPlainText()
         if self.analysis_dirty:
             self.project["analysis_draft"] = {
@@ -530,10 +691,11 @@ class MainWindow(QMainWindow):
             return
         if not previous.get("clips") and not previous.get("audio_path"):
             return
-        if QMessageBox.question(self, "Projekt fortsetzen", "Das letzte automatisch gesicherte Projekt wiederherstellen?") == QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, "Projekt fortsetzen", f"Das zuletzt automatisch gesicherte Projekt „{previous.get('name', 'Neues Musikvideo')}“ wiederherstellen?") == QMessageBox.StandardButton.Yes:
             try:
                 previous["clips"]=recover_pending_rename(previous["clips"])
                 self.project = previous
+                self.dirty = True  # Not yet saved to a project file of its own.
                 self._refresh()
             except Exception as error:
                 self._error(error)
@@ -547,7 +709,7 @@ class MainWindow(QMainWindow):
     def _populate_ui(self):
         self.updating = True
         p = self.project
-        self.name_edit.setText(p.get("name", "Mein Musikvideo"))
+        self.name_edit.setText(p.get("name", "Neues Musikvideo"))
         self.folder_edit.setText(p.get("video_dir", ""))
         self.audio_edit.setText(p.get("audio_path", ""))
         self.lyrics_edit.setPlainText(p.get("lyrics", ""))
@@ -558,13 +720,32 @@ class MainWindow(QMainWindow):
                 self.fps.setCurrentIndex(index)
         self.width.setValue(tl.get("width",1920))
         self.height.setValue(tl.get("height",1080))
+        self._sync_preset()
         clips = p.get("clips", [])
         set_rows(self.clip_table, [[c["name"], f"{c['duration']:.3f} s", f"{c['width']} × {c['height']} · {c['fps_num']/c['fps_den']:.3f}", c.get("description", "")] for c in clips])
+        self.clip_table.blockSignals(True)
         for row in range(self.clip_table.rowCount()):
+            clip = clips[row]
             for col in range(3):
                 item = self.clip_table.item(row,col)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            self.clip_table.item(row,0).setToolTip(clips[row]["path"])
+            first = self.clip_table.item(row,0)
+            samples = clip.get("samples") or []
+            if samples and samples[0].get("image"):
+                first.setIcon(thumbnail_icon(samples[0]["image"]))
+            notes = list(clip.get("metadata_warnings", []))
+            if clip.get("vision_error"):
+                notes.insert(0, "Vision: " + clip["vision_error"])
+            first.setToolTip("\n".join([clip["path"], *notes]))
+            if clip.get("vision_error") or clip.get("is_vfr"):
+                first.setForeground(QColor("#f0c674"))
+            if not str(clip.get("description", "")).strip():
+                self.clip_table.item(row,3).setToolTip("Noch keine Beschreibung – Vision-Analyse starten oder selbst eintragen.")
+        self.clip_table.blockSignals(False)
+        described = sum(1 for c in clips if str(c.get("description", "")).strip())
+        self.catalog_badge.setText(f"{described}/{len(clips)} beschrieben" if clips else "")
+        self.catalog_badge.setVisible(bool(clips))
+        self._filter_clips(self.clip_search.text())
         a = p.get("audio") or {}
         set_rows(self.beat_table, [[f"{x:.6f}"] for x in a.get("beats",[])])
         set_rows(self.line_table, [[f"{x['start']:.3f}", f"{x['end']:.3f}", x["text"]] for x in a.get("lines",[])])
@@ -575,12 +756,15 @@ class MainWindow(QMainWindow):
             for key,widget in [("beats",self.beat_table),("lines",self.line_table),("sections",self.section_table)]:
                 set_rows(widget,draft.get(key,[]))
         duration = a.get("duration",0)
-        self.audio_summary.setText(f"{duration:.2f} s · {len(a.get('beats',[]))} Beats · {len(a.get('lines',[]))} Textzeilen" if duration else "Noch keine Audioanalyse vorhanden.")
+        tempo = a.get("tempo") or 0
+        self.audio_summary.setText((f"{duration:.2f} s · {len(a.get('beats',[]))} Beats" + (f" · ≈ {tempo:.0f} BPM" if tempo else "") + f" · {len(a.get('lines',[]))} Textzeilen") if duration else "Noch keine Audioanalyse vorhanden.")
         self.analysis_warnings.setText(("Ungesicherte Tabellenkorrekturen: vor der Regie werden sie geprüft und übernommen.\n" if self.analysis_dirty else "")+"\n".join(a.get("warnings",[])[:3]))
-        self.project_summary.setText(f"{p.get('name','Mein Musikvideo')}\n{len(clips)} Clips · {duration:.1f} s Song")
+        self.project_summary.setText(f"{p.get('name','Neues Musikvideo')}\n{len(clips)} Clips · {duration:.1f} s Song")
         self.plan_edit.setPlainText(p.get("plan_draft") or (json.dumps(p["plan"],ensure_ascii=False,indent=2) if p.get("plan") else ""))
         self.updating = False
         self._refresh_timeline()
+        self._update_steps()
+        self._update_title()
 
     def _refresh_timeline(self):
         if not self.project.get("plan"):
@@ -603,8 +787,94 @@ class MainWindow(QMainWindow):
     def _invalidate_plan(self):
         self.project["plan"] = None
         self.project.pop("plan_draft", None)
+        self.project.pop("last_export", None)
         self.plan_edit.clear()
         self._refresh_timeline()
+        self._update_steps()
+
+    def _filter_clips(self, text=""):
+        needle = text.strip().casefold()
+        clips = self.project.get("clips", [])
+        for row in range(self.clip_table.rowCount()):
+            clip = clips[row] if row < len(clips) else {}
+            haystack = " ".join([str(clip.get("name", "")), str(clip.get("description", "")), " ".join(map(str, clip.get("tags", [])))]).casefold()
+            self.clip_table.setRowHidden(row, bool(needle) and needle not in haystack)
+
+    def _table_beats(self):
+        values = []
+        for row in range(self.beat_table.rowCount()):
+            try:
+                values.append(float(cell(self.beat_table, row, 0).replace(",", ".")))
+            except ValueError:
+                raise ValueError(f"Beat in Zeile {row + 1} ist keine Zahl.") from None
+        return values
+
+    def _set_table_beats(self, beats, message):
+        set_rows(self.beat_table, [[f"{x:.6f}"] for x in beats])
+        self._analysis_edited()
+        self._notify(message + " Mit „Änderungen übernehmen“ bestätigen.")
+
+    def apply_beat_grid(self):
+        duration = float((self.project.get("audio") or {}).get("duration") or 0)
+        if not duration:
+            self._error("Analysiere zuerst den Song.")
+            return
+        try:
+            before = self._table_beats()
+            mode = self.beat_mode.currentData()
+            beats = retime_beats(before, mode, duration, phase=self.beat_phase.value() - 1)
+        except ValueError as error:
+            self._error(error)
+            return
+        if len(beats) < 1:
+            self._error("Das Raster würde alle Beats entfernen.")
+            return
+        self._set_table_beats(beats, f"Schnittraster angewendet: {len(before)} → {len(beats)} Beats.")
+
+    def shift_beats(self):
+        duration = float((self.project.get("audio") or {}).get("duration") or 0)
+        offset = self.beat_offset.value() / 1000
+        if not duration or not offset:
+            return
+        try:
+            beats = retime_beats(self._table_beats(), "shift", duration, offset=offset)
+        except ValueError as error:
+            self._error(error)
+            return
+        self._set_table_beats(beats, f"Alle Beats um {offset * 1000:+.0f} ms verschoben.")
+
+    def _play_shot(self, row, _column=0):
+        if row < 0 or not self.project.get("plan"):
+            return
+        try:
+            seconds = float(cell(self.shot_table, row, 0).split()[0])
+        except (ValueError, IndexError):
+            return
+        self.play_song(start=seconds, toggle=False)
+
+    def _drop_paths(self, event):
+        return [Path(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
+
+    def dragEnterEvent(self, event):
+        if not self.job and any(p.is_dir() or p.suffix.lower() in AUDIO_EXTENSIONS | VIDEO_EXTENSIONS | set(PROJECT_SUFFIXES) for p in self._drop_paths(event)):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        paths = self._drop_paths(event)
+        event.acceptProposedAction()
+        project = next((p for p in paths if p.suffix.lower() in PROJECT_SUFFIXES), None)
+        if project:
+            QTimer.singleShot(0, lambda: self.open_project_path(str(project)))
+            return
+        audio = next((p for p in paths if p.suffix.lower() in AUDIO_EXTENSIONS), None)
+        if audio:
+            self._set_audio(str(audio))
+        folder = next((p for p in paths if p.is_dir()), None)
+        if folder is None:
+            videos = [p for p in paths if p.suffix.lower() in VIDEO_EXTENSIONS]
+            folder = videos[0].parent if videos else None
+        if folder:
+            QTimer.singleShot(0, lambda: self._scan(str(folder)))
 
     def choose_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Videoordner auswählen", self.project.get("video_dir", ""))
@@ -612,14 +882,18 @@ class MainWindow(QMainWindow):
             self._scan(folder)
 
     def _scan(self, folder):
+        def signature(items):
+            return sorted((c.get("id"), c.get("path"), c.get("duration"), c.get("fps_num"), c.get("fps_den"), c.get("frame_count")) for c in items)
         def done(clips):
+            unchanged = signature(clips) == signature(self.project.get("clips", []))
             self.project["video_dir"] = folder
             self.project["clips"] = clips
-            self._invalidate_plan()
+            if not unchanged:
+                self._invalidate_plan()  # A rescan of identical media keeps the checked plan.
             self._edited()
             self._refresh()
             self.navigation.setCurrentRow(1)
-            self._notify(f"{len(clips)} Clips eingelesen.")
+            self._notify(f"{len(clips)} Clips eingelesen." + (" Schnittplan bleibt gültig." if unchanged and self.project.get("plan") else ""))
         self._start_job("scan", {"folder":folder,"clips":self.project.get("clips",[])}, done)
 
     def rescan(self):
@@ -629,13 +903,19 @@ class MainWindow(QMainWindow):
             self.choose_folder()
 
     def choose_audio(self):
-        path, _ = QFileDialog.getOpenFileName(self,"Song auswählen","","Audiodateien (*.mp3 *.wav *.aiff *.aif *.m4a *.flac *.ogg *.aac *.opus);;Alle Dateien (*)")
+        path, _ = QFileDialog.getOpenFileName(self,"Song auswählen",str(Path(self.project.get("audio_path") or "").parent) if self.project.get("audio_path") else "","Audiodateien (" + " ".join("*"+e for e in sorted(AUDIO_EXTENSIONS)) + ");;Alle Dateien (*)")
         if path:
-            self.project["audio_path"] = path
-            self.project["audio"] = {}
-            self._invalidate_plan()
-            self._edited()
-            self._refresh()
+            self._set_audio(path)
+
+    def _set_audio(self, path):
+        self.project["audio_path"] = path
+        self.project["audio"] = {}
+        self.project.pop("analysis_draft", None)
+        self.analysis_dirty = False
+        self._invalidate_plan()
+        self._edited()
+        self._refresh()
+        self._notify(f"Song gewählt: {Path(path).name}. Als Nächstes „Song analysieren“.")
 
     def analyze_song(self):
         self._sync_form()
@@ -660,12 +940,19 @@ class MainWindow(QMainWindow):
             self.project["clips"] = clips
             self._edited()
             self._refresh()
-        self._start_job("vision",{"clips":self.project["clips"],"frame_count":self.frame_count.value(),"model":self.config.get("vision_model","qwen2.5vl:7b"),"base_url":self.config.get("ollama_url","http://localhost:11434")},done)
+            failed = [c for c in clips if c.get("vision_error")]
+            if failed:
+                self._notify(f"Vision fertig · {len(failed)} Clip(s) übersprungen. Details im Tooltip der gelb markierten Zeilen.")
+            else:
+                self._notify("Vision-Analyse abgeschlossen. Beschreibungen kannst du direkt in der Tabelle anpassen.")
+        self._start_job("vision",{"clips":self.project["clips"],"frame_count":self.frame_count.value(),"only_missing":self.only_missing.isChecked(),"model":self.config.get("vision_model","qwen2.5vl:7b"),"base_url":self.config.get("ollama_url","http://localhost:11434")},done)
 
     def _clip_changed(self,row,col):
         if not self.updating and col == 3 and row < len(self.project["clips"]):
             self.project["clips"][row]["description"] = cell(self.clip_table,row,3)
+            self.project["clips"][row].pop("vision_error", None)
             self._edited()
+            self._update_steps()
 
     def _selected_clip(self):
         index = self.clip_table.currentRow()
@@ -692,9 +979,15 @@ class MainWindow(QMainWindow):
     def load_thumbnail(self):
         clip = self._selected_clip()
         if clip:
+            row = self.clip_table.currentRow()
             def done(samples):
                 if samples:
+                    clip["samples"] = samples[:1]
                     self._show_thumbnail(samples[0]["image"])
+                    item = self.clip_table.item(row, 0)
+                    if item:
+                        item.setIcon(thumbnail_icon(samples[0]["image"]))
+                    self._edited()
             self._start_job("frames",{"clip":clip,"count":1},done)
 
     def reveal_clip(self):
@@ -814,7 +1107,7 @@ class MainWindow(QMainWindow):
             self._error(error)
             return False
 
-    def play_song(self):
+    def play_song(self, start=None, toggle=True):
         if not self.project.get("audio_path"):
             return
         from PySide6.QtMultimedia import QAudioOutput,QMediaPlayer
@@ -826,16 +1119,21 @@ class MainWindow(QMainWindow):
         url=QUrl.fromLocalFile(self.project["audio_path"])
         if self.player.source()!=url:
             self.player.setSource(url)
-        if self.player.playbackState()==QMediaPlayer.PlaybackState.PlayingState:
+        if toggle and self.player.playbackState()==QMediaPlayer.PlaybackState.PlayingState:
             self.player.pause()
-        else:
+            self._notify("Wiedergabe pausiert.")
+            return
+        if start is None:
             row=self.line_table.currentRow()
             if row>=0:
                 try:
-                    self.player.setPosition(int(float(cell(self.line_table,row,0))*1000))
+                    start=float(cell(self.line_table,row,0).replace(",","."))
                 except ValueError:
-                    pass
-            self.player.play()
+                    start=None
+        if start is not None:
+            self.player.setPosition(int(max(0.0,start)*1000))
+        self.player.play()
+        self._notify("Wiedergabe" + (f" ab {start:.2f} s" if start is not None else "") + " · „Song anhören“ pausiert.")
 
     def _ready_for_plan(self):
         if self.analysis_dirty:
@@ -934,6 +1232,7 @@ class MainWindow(QMainWindow):
             self.plan_edit.setPlainText(json.dumps(plan,ensure_ascii=False,indent=2))
             self._edited()
             self._refresh_timeline()
+            self._update_steps()
             self._notify("Schnittplan geprüft und übernommen.")
             return True
         except Exception as error:
@@ -964,6 +1263,9 @@ class MainWindow(QMainWindow):
         if existing and QMessageBox.question(self,"Dateien ersetzen","Diese Exportdateien existieren bereits und werden ersetzt:\n\n"+"\n".join(existing))!=QMessageBox.StandardButton.Yes:
             return
         def done(paths):
+            self.project["last_export"] = {"folder": destination, "formats": formats, "at": time.strftime("%Y-%m-%d %H:%M")}
+            self._edited()
+            self._update_steps()
             self.export_result.setText("Exportiert:\n"+"\n".join(paths))
             self._notify("Timeline und Projektkatalog exportiert.")
             QDesktopServices.openUrl(QUrl.fromLocalFile(destination))
@@ -980,7 +1282,6 @@ class MainWindow(QMainWindow):
         dialog=SettingsDialog(self.config,self)
         if dialog.exec()==QDialog.DialogCode.Accepted:
             values=dialog.values()
-            from urllib.parse import urlparse
             try:
                 from .services import OllamaManager
                 OllamaManager(values["ollama_url"])
@@ -1007,6 +1308,12 @@ class MainWindow(QMainWindow):
         name=QLineEdit(self.config.get("vision_model","qwen2.5vl:7b"))
         layout.addWidget(kind)
         layout.addWidget(name)
+        size_hint=label("","subtitle")
+        layout.addWidget(size_hint)
+        def update_size(*_):
+            size_hint.setText(model_size_hint(name.text()))
+        name.textChanged.connect(update_size)
+        update_size()
         kind.currentTextChanged.connect(lambda x:name.setText(self.config.get("whisper_model","mlx-community/whisper-small-mlx") if x=="Whisper" else self.config.get("vision_model","qwen2.5vl:7b")))
         controls=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel)
         controls.accepted.connect(dialog.accept)
@@ -1138,29 +1445,32 @@ class MainWindow(QMainWindow):
             self.project=new_project()
             self.project_path=None
             self.dirty=False
+            self.setWindowFilePath("")
             self._refresh()
             self.navigation.setCurrentRow(0)
 
     def open_project(self):
         if not self._confirm_discard():
             return
-        path,_=QFileDialog.getOpenFileName(self,"Projekt öffnen","","Video-Creator-Projekt (*.vcproject *.json)")
+        path,_=QFileDialog.getOpenFileName(self,"Projekt öffnen","",PROJECT_FILTER)
         if path:
             self.open_project_path(path,confirm=False)
 
     def open_project_path(self,path,confirm=True):
         if confirm and not self._confirm_discard():
             return
-        previous=self.project
+        previous,previous_path,previous_dirty=self.project,self.project_path,self.dirty
         try:
             loaded=load_project(path)
             loaded["clips"]=recover_pending_rename(loaded["clips"])
             self.project=loaded
-            self._refresh()
             self.project_path=str(path)
             self.dirty=False
+            self._refresh()
+            remember_project(path)
+            self._notify(f"Projekt geöffnet: {Path(path).name}")
         except Exception as error:
-            self.project=previous
+            self.project,self.project_path,self.dirty=previous,previous_path,previous_dirty
             self._refresh()
             self._error(error)
 
@@ -1168,14 +1478,18 @@ class MainWindow(QMainWindow):
         self._sync_form()
         path=self.project_path
         if save_as or not path:
-            path,_=QFileDialog.getSaveFileName(self,"Projekt speichern",self.project["name"]+".vcproject","Video-Creator-Projekt (*.vcproject)")
+            path,_=QFileDialog.getSaveFileName(self,"Projekt speichern",self.project["name"]+PROJECT_SUFFIX,PROJECT_FILTER)
+            if path and Path(path).suffix.lower() not in PROJECT_SUFFIXES:
+                path += PROJECT_SUFFIX
         if not path:
             return False
         try:
             save_project(self.project,path)
             self.project_path=path
             self.dirty=False
-            self._notify("Projekt gespeichert.")
+            remember_project(path)
+            self._update_title()
+            self._notify(f"Projekt gespeichert: {Path(path).name}")
             return True
         except Exception as error:
             self._error(error)
@@ -1187,7 +1501,7 @@ class MainWindow(QMainWindow):
         if path.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
         else:
-            QMessageBox.information(self,"Video Creator","1. Medien auswählen\n2. Clips mit Vision beschreiben\n3. Song analysieren und Positionen prüfen\n4. KI-Regie oder ChatGPT-Prompt nutzen\n5. JSON prüfen und Timeline exportieren")
+            QMessageBox.information(self,APP_NAME,"1. Medien auswählen\n2. Clips mit Vision beschreiben\n3. Song analysieren und Positionen prüfen\n4. KI-Regie oder ChatGPT-Prompt nutzen\n5. JSON prüfen und Timeline exportieren")
 
     def closeEvent(self,event):
         if self.job:
@@ -1219,8 +1533,9 @@ class CreatorApplication(QApplication):
 
 def run_app(argv):
     application=CreatorApplication(argv)
-    application.setApplicationName("Video Creator")
-    application.setOrganizationName("Video Creator")
+    application.setApplicationName(APP_NAME)
+    application.setApplicationDisplayName(APP_NAME)
+    application.setOrganizationName(APP_NAME)
     application.setApplicationVersion(__version__)
     application.setWindowIcon(app_icon())
     application.setStyle("Fusion")
@@ -1230,7 +1545,7 @@ def run_app(argv):
     window.show()
     project_path=getattr(application,"pending_project",None)
     if not project_path:
-        project_path=next((arg for arg in argv[1:] if not arg.startswith("-") and Path(arg).suffix in {".vcproject",".json"} and Path(arg).is_file()),None)
+        project_path=next((arg for arg in argv[1:] if not arg.startswith("-") and Path(arg).suffix.lower() in {*PROJECT_SUFFIXES,".json"} and Path(arg).is_file()),None)
     if project_path:
         QTimer.singleShot(0,lambda:window.open_project_path(project_path,confirm=False))
     return application.exec()

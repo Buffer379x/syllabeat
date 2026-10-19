@@ -16,12 +16,56 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from . import APP_NAME, LEGACY_APP_NAME
+
+KEYCHAIN_SERVICE = APP_NAME
+LEGACY_KEYCHAIN_SERVICE = LEGACY_APP_NAME
+RECENT_LIMIT = 8
+
+
+def default_data_dir() -> Path:
+    """~/Library/Application Support/SyllaBeat, migrated once from the legacy name.
+
+    Downloaded Whisper/Ollama models can be several GB, so the legacy folder is
+    renamed (same volume, instant) instead of copied or silently abandoned.
+    """
+    support = Path.home() / "Library/Application Support"
+    current, legacy = support / APP_NAME, support / LEGACY_APP_NAME
+    if not current.exists() and legacy.is_dir():
+        try:
+            legacy.rename(current)
+        except OSError:
+            return legacy
+    return current
+
 
 def app_support() -> Path:
     """Return the app's private, writable state directory."""
-    root = Path(os.environ.get("VC_DATA_DIR", str(Path.home() / "Library/Application Support/Video Creator")))
+    root = Path(os.environ["VC_DATA_DIR"]) if os.environ.get("VC_DATA_DIR") else default_data_dir()
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def recent_projects() -> list[str]:
+    """Most recently used project files that still exist (newest first)."""
+    try:
+        data = json.loads((app_support() / "recent.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, str) and Path(item).is_file()][:RECENT_LIMIT]
+
+
+def remember_project(path: str | Path) -> list[str]:
+    entry = str(Path(path).expanduser().absolute())
+    items = [entry] + [item for item in recent_projects() if item != entry]
+    items = items[:RECENT_LIMIT]
+    try:
+        _atomic_json(items, app_support() / "recent.json")
+    except OSError:
+        pass
+    return items
 
 
 def new_project() -> dict:
@@ -275,22 +319,25 @@ def _security(arguments: list[str]) -> subprocess.CompletedProcess:
 
 def keychain_get(account: str = "openai") -> str:
     """Keys stay in the macOS login Keychain and never enter a project file."""
-    result = _security(["find-generic-password", "-s", "Video Creator", "-a", account, "-w"])
-    if result.returncode == 44:  # errSecItemNotFound
-        return ""
-    if result.returncode:
-        raise RuntimeError("Der macOS-Schlüsselbund konnte nicht gelesen werden. Bitte den Zugriff erlauben.")
-    return result.stdout.rstrip("\n")
+    for service in (KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE):
+        result = _security(["find-generic-password", "-s", service, "-a", account, "-w"])
+        if result.returncode == 44:  # errSecItemNotFound
+            continue
+        if result.returncode:
+            raise RuntimeError("Der macOS-Schlüsselbund konnte nicht gelesen werden. Bitte den Zugriff erlauben.")
+        return result.stdout.rstrip("\n")
+    return ""
 
 
 def keychain_set(api_key: str, account: str = "openai") -> None:
     if not api_key:
-        result = _security(["delete-generic-password", "-s", "Video Creator", "-a", account])
-        if result.returncode not in (0, 44):
-            raise RuntimeError("Der API-Key konnte nicht aus dem macOS-Schlüsselbund entfernt werden.")
+        for service in (KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE):
+            result = _security(["delete-generic-password", "-s", service, "-a", account])
+            if result.returncode not in (0, 44):
+                raise RuntimeError("Der API-Key konnte nicht aus dem macOS-Schlüsselbund entfernt werden.")
         return
     # The security utility receives the secret directly; no shell or application log is involved.
-    result = _security(["add-generic-password", "-U", "-s", "Video Creator", "-a", account, "-w", api_key])
+    result = _security(["add-generic-password", "-U", "-s", KEYCHAIN_SERVICE, "-a", account, "-w", api_key])
     if result.returncode:
         raise RuntimeError("Der API-Key konnte nicht im macOS-Schlüsselbund gespeichert werden.")
 

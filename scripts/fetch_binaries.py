@@ -4,11 +4,11 @@ from __future__ import annotations
 import concurrent.futures
 import hashlib
 import json
-import os
 from pathlib import Path
 import shutil
 import sys
 import tarfile
+import urllib.error
 import urllib.request
 import zipfile
 
@@ -21,7 +21,7 @@ LICENSES = ROOT / "assets/licenses"
 def download(url: str, destination: Path) -> str:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if not destination.exists():
-        req = urllib.request.Request(url, headers={"User-Agent": "VideoCreator-Build/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "SyllaBeat-Build/0.1"})
         with urllib.request.urlopen(req, timeout=90) as source, destination.with_suffix(destination.suffix + ".part").open("wb") as out:
             shutil.copyfileobj(source, out)
             final_url = source.url
@@ -116,9 +116,19 @@ def pinned(entry: dict) -> dict:
     return entry
 
 
+def pinned_or_latest(entry: dict) -> dict:
+    """CI safety net: an expired pinned URL falls back to the verified latest release."""
+    try:
+        return pinned(entry)
+    except (urllib.error.URLError, OSError) as exc:
+        print(f"Warnung: {entry['name']} aus binaries.json nicht ladbar ({exc}); verwende neueste Version.", file=sys.stderr)
+        return ollama() if entry["name"] == "ollama" else ffmpeg(entry["name"])
+
+
 if __name__ == "__main__":
     # Default: reproduce the versions in assets/binaries.json (SHA-256 verified).
     # "--latest" fetches the newest releases and records them in binaries.json.
+    # "--fallback-latest" keeps pinned versions but tolerates vanished download URLs.
     BIN.mkdir(parents=True, exist_ok=True)
     LICENSES.mkdir(parents=True, exist_ok=True)
     manifest = ROOT / "assets/binaries.json"
@@ -127,7 +137,8 @@ if __name__ == "__main__":
         if use_latest:
             results = list(pool.map(lambda f: f(), [lambda: ffmpeg("ffmpeg"), lambda: ffmpeg("ffprobe"), ollama]))
         else:
-            results = list(pool.map(pinned, json.loads(manifest.read_text(encoding="utf-8"))))
+            fetch = pinned_or_latest if "--fallback-latest" in sys.argv[1:] else pinned
+            results = list(pool.map(fetch, json.loads(manifest.read_text(encoding="utf-8"))))
     if use_latest:
         manifest.write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(json.dumps(results, indent=2))
