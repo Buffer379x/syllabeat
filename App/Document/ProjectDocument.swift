@@ -45,6 +45,19 @@ final class ProjectDocument: ReferenceFileDocument, @unchecked Sendable {
         FileWrapper(regularFileWithContents: try ProjectFile.encode(snapshot))
     }
 
+    /// Markiert das Dokument als geändert, ohne einen Undo-Schritt anzulegen (setzt das Fenster).
+    @MainActor var markChanged: () -> Void = {}
+
+    /// Ergebnisse von Analysen: ändern das Dokument, landen aber nicht auf dem Undo-Stapel.
+    @MainActor
+    func applyAnalysis(_ change: (inout Project) -> Void) {
+        var updated = project
+        change(&updated)
+        guard updated != project else { return }
+        project = updated
+        markChanged()
+    }
+
     /// Führt einen Befehl aus und zeigt Fehler im Fenster statt still zu scheitern.
     @MainActor
     func run(_ command: some EditCommand, undoManager: UndoManager?) -> String? {

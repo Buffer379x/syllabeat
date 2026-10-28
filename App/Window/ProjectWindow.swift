@@ -1,9 +1,26 @@
+import AppKit
 import SwiftUI
 import SyllaBeatCore
 
-/// Ein Dokumentfenster: Bibliothek, Vorschau, Inspektor und darunter die Timeline über die volle Breite.
+/// Ein Dokumentfenster. Legt beim ersten Erscheinen den Medien-Controller des Dokuments an.
 struct ProjectWindow: View {
     @ObservedObject var document: ProjectDocument
+    @Environment(AppServices.self) private var services
+    @State private var media: MediaController?
+
+    var body: some View {
+        if let media {
+            ProjectWorkspace(document: document, media: media)
+        } else {
+            Color.clear.onAppear { media = MediaController(document: document, services: services) }
+        }
+    }
+}
+
+/// Bibliothek, Vorschau, Inspektor und darunter die Timeline über die volle Breite.
+struct ProjectWorkspace: View {
+    @ObservedObject var document: ProjectDocument
+    var media: MediaController
     @Environment(\.undoManager) private var undoManager
     @Environment(\.documentConfiguration) private var configuration
     @State private var selectedClipID: String?
@@ -17,17 +34,25 @@ struct ProjectWindow: View {
         // Das Banner steht über den Splits: AppKit-Splitviews beachten keine Safe-Area-Einschübe.
         VStack(spacing: 0) {
             if let backupNotice {
-                Banner(text: backupNotice, systemImage: "clock.arrow.circlepath") { self.backupNotice = nil }
+                Banner(text: backupNotice, systemImage: "clock.arrow.circlepath", identifier: "migrationBanner") {
+                    self.backupNotice = nil
+                }
+            }
+            if let message = media.message {
+                Banner(text: message, systemImage: "info.circle", identifier: "mediaBanner") { media.message = nil }
             }
             VSplitView {
                 HSplitView {
-                    LibraryPane(clips: project.clips, selection: $selectedClipID)
+                    LibraryPane(project: project, media: media, selection: $selectedClipID)
                         .frame(minWidth: 220, idealWidth: 270, maxWidth: 460)
                     PreviewPane(project: project)
                         .frame(minWidth: 380, maxWidth: .infinity)
                     if showsInspector {
-                        InspectorPane(document: document, selectedClipID: selectedClipID, errorMessage: $errorMessage)
-                            .frame(minWidth: 250, idealWidth: 290, maxWidth: 460)
+                        InspectorPane(
+                            document: document, media: media, selectedClipID: selectedClipID,
+                            errorMessage: $errorMessage
+                        )
+                        .frame(minWidth: 250, idealWidth: 290, maxWidth: 460)
                     }
                 }
                 .frame(minHeight: 320, maxHeight: .infinity)
@@ -35,9 +60,31 @@ struct ProjectWindow: View {
                     .frame(minHeight: 172, idealHeight: 176, maxHeight: 200)
             }
         }
+        .dropDestination(for: URL.self) { urls, _ in
+            media.importItems(urls)
+            return true
+        }
+        .background(
+            WindowAccessor { window in
+                document.markChanged = { [weak window] in
+                    NSDocumentController.shared.document(for: window ?? NSWindow())?.updateChangeCount(.changeDone)
+                }
+            }
+        )
+        .focusedSceneValue(\.projectMedia, media)
+        .onDeleteCommand(perform: removeSelectedClip)
         .toolbar { toolbar }
         .navigationSubtitle(subtitle)
         .task(id: configuration?.fileURL) { createLegacyBackupIfNeeded() }
+        .task {
+            media.undoManager = undoManager
+            media.start()
+            // Automatisierung (UI-Tests): `-SBImportPaths "<Pfad>|<Pfad>"` importiert beim Öffnen.
+            if let paths = UserDefaults.standard.string(forKey: "SBImportPaths") {
+                media.importItems(paths.split(separator: "|").map { URL(fileURLWithPath: String($0)) })
+            }
+        }
+        .onChange(of: undoManager) { _, manager in media.undoManager = manager }
         .alert(
             "Aktion nicht möglich", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })
         ) {
@@ -71,6 +118,12 @@ struct ProjectWindow: View {
         }
     }
 
+    private func removeSelectedClip() {
+        guard let id = selectedClipID else { return }
+        errorMessage = document.run(RemoveClips(clipIDs: [id]), undoManager: undoManager)
+        if errorMessage == nil { selectedClipID = nil }
+    }
+
     private func createLegacyBackupIfNeeded() {
         guard document.migratedFrom != nil, let url = configuration?.fileURL else { return }
         do {
@@ -88,6 +141,7 @@ struct ProjectWindow: View {
 struct Banner: View {
     var text: String
     var systemImage: String
+    var identifier: String
     var close: () -> Void
 
     var body: some View {
@@ -104,6 +158,23 @@ struct Banner: View {
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("migrationBanner")
+        .accessibilityIdentifier(identifier)
     }
+}
+
+/// Liefert das Fenster einer SwiftUI-Ansicht (für die Verbindung zum NSDocument).
+struct WindowAccessor: NSViewRepresentable {
+    var found: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { if let window = view.window { found(window) } }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
+}
+
+extension FocusedValues {
+    @Entry var projectMedia: MediaController?
 }

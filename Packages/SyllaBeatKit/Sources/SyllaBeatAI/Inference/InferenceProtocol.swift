@@ -10,6 +10,9 @@ public enum InferenceService {
 
 public enum InferenceRequest: Codable, Sendable, Equatable {
     case ping
+    /// Bild-Embeddings für Bilddateien (Vorschaubilder im Zwischenspeicher); Reihenfolge wie `paths`.
+    case embedImages(model: String, paths: [String])
+    case embedText(model: String, text: String)
 }
 
 public struct InferenceStatus: Codable, Sendable, Equatable {
@@ -33,6 +36,8 @@ public struct InferenceStatus: Codable, Sendable, Equatable {
 
 public enum InferenceResponse: Codable, Sendable, Equatable {
     case status(InferenceStatus)
+    /// Ein Vektor je Eingabe; ein leerer Vektor heißt: Eingabe nicht lesbar.
+    case vectors([[Float]])
     case failure(String)
 }
 

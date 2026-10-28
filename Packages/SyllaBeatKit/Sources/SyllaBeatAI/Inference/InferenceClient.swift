@@ -15,6 +15,26 @@ public actor InferenceClient {
         switch try await send(.ping) {
         case .status(let status): return status
         case .failure(let reason): throw InferenceError.remote(reason)
+        default: throw InferenceError.unexpectedReply
+        }
+    }
+
+    public func embedImages(model: String, paths: [String]) async throws -> [[Float]] {
+        try vectors(await send(.embedImages(model: model, paths: paths)))
+    }
+
+    public func embedText(model: String, text: String) async throws -> [Float] {
+        guard let vector = try vectors(await send(.embedText(model: model, text: text))).first else {
+            throw InferenceError.unexpectedReply
+        }
+        return vector
+    }
+
+    private func vectors(_ response: InferenceResponse) throws -> [[Float]] {
+        switch response {
+        case .vectors(let vectors): return vectors
+        case .failure(let reason): throw InferenceError.remote(reason)
+        default: throw InferenceError.unexpectedReply
         }
     }
 

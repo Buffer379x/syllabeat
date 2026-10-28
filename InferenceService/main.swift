@@ -4,14 +4,16 @@ import Darwin
 import Foundation
 import SyllaBeatAI
 import SyllaBeatCore
+import SyllaBeatModels
 import Synchronization
 import XPC
 
 let started = Date()
 
-/// Merkt sich die letzte Anfrage und beendet den Prozess nach `timeout` Sekunden Ruhe.
+/// Merkt sich die letzte Anfrage und beendet den Prozess nach `timeout` Sekunden Ruhe (nie während einer Anfrage).
 final class IdleWatchdog: Sendable {
     private let lastActivity = Mutex(Date())
+    private let active = Mutex(0)
     private let timeout: TimeInterval
     private let timer: DispatchSourceTimer
 
@@ -20,7 +22,13 @@ final class IdleWatchdog: Sendable {
         timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
     }
 
-    func touch() {
+    func begin() {
+        active.withLock { $0 += 1 }
+        lastActivity.withLock { $0 = Date() }
+    }
+
+    func end() {
+        active.withLock { $0 -= 1 }
         lastActivity.withLock { $0 = Date() }
     }
 
@@ -29,7 +37,7 @@ final class IdleWatchdog: Sendable {
         timer.schedule(deadline: .now() + interval, repeating: interval)
         timer.setEventHandler { [self] in
             let idle = Date().timeIntervalSince(lastActivity.withLock { $0 })
-            if idle >= timeout {
+            if idle >= timeout, active.withLock({ $0 }) == 0 {
                 Log.inference.info("Inferenzdienst beendet sich nach \(Int(idle)) s Leerlauf")
                 exit(0)
             }
@@ -49,27 +57,63 @@ func residentMemory() -> UInt64 {
     return result == KERN_SUCCESS ? info.resident_size : 0
 }
 
-func handle(_ request: InferenceRequest) -> InferenceResponse {
-    switch request {
-    case .ping:
-        .status(
-            InferenceStatus(
-                processID: getpid(), version: BuildInfo.version, residentMemoryBytes: residentMemory(),
-                uptime: Date().timeIntervalSince(started), idleTimeout: InferenceService.idleTimeout))
+/// Hält die geladenen Modelle; Anfragen laufen nacheinander (eine GPU-Aufgabe zur Zeit).
+actor Engine {
+    private var siglip: SiglipEmbedder?
+
+    private func embedder(_ model: String) async throws -> SiglipEmbedder {
+        guard model == ModelCatalog.siglip2.id else { throw EmbeddingError.unexpectedModel(model) }
+        if let siglip { return siglip }
+        let loaded = try await SiglipEmbedder()
+        siglip = loaded
+        return loaded
+    }
+
+    func handle(_ request: InferenceRequest) async -> InferenceResponse {
+        do {
+            switch request {
+            case .ping:
+                return .status(
+                    InferenceStatus(
+                        processID: getpid(), version: BuildInfo.version, residentMemoryBytes: residentMemory(),
+                        uptime: Date().timeIntervalSince(started), idleTimeout: InferenceService.idleTimeout))
+            case .embedImages(let model, let paths):
+                let embedder = try await embedder(model)
+                return .vectors(paths.map { (try? embedder.embed(imageAt: URL(fileURLWithPath: $0))) ?? [] })
+            case .embedText(let model, let text):
+                return .vectors([try await embedder(model).embed(text: text)])
+            }
+        } catch {
+            return .failure(error.localizedDescription)
+        }
     }
 }
 
+let engine = Engine()
+
+/// XPC-Nachrichten dürfen von jedem Thread aus beantwortet werden.
+struct PendingReply: @unchecked Sendable {
+    let message: XPCReceivedMessage
+}
 let watchdog = IdleWatchdog(timeout: InferenceService.idleTimeout)
 
 do {
     let listener = try XPCListener(service: InferenceService.bundleIdentifier) { request in
         request.accept { (message: XPCReceivedMessage) -> (any Encodable)? in
-            watchdog.touch()
+            let decoded: InferenceRequest
             do {
-                return handle(try message.decode(as: InferenceRequest.self))
+                decoded = try message.decode(as: InferenceRequest.self)
             } catch {
                 return InferenceResponse.failure("Unbekannte Anfrage: \(error.localizedDescription)")
             }
+            // Antwort folgt asynchron, damit lange Modellaufgaben die Verbindung nicht blockieren.
+            watchdog.begin()
+            let pending = PendingReply(message: message)
+            Task {
+                pending.message.reply(await engine.handle(decoded))
+                watchdog.end()
+            }
+            return nil
         }
     }
     withExtendedLifetime(listener) {

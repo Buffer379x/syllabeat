@@ -10,6 +10,13 @@ let usage = """
       compile <Projekt>          Frame-Tabelle des aktiven Schnitts als JSON ausgeben
       selftest                   eingebaute Prüfungen ohne Medien ausführen
       version                    Version ausgeben
+
+      probe <Datei> …            technische Daten von Videos
+      truth <Ordner>             Metadaten und Schnitte gegen clips.truth.json prüfen
+      import <Ordner> [<aus>] [--parallel N]   Ordner analysieren (Zeitmessung), optional als Projekt sichern
+      model-install [<Ordner>]   SigLIP 2 laden (oder aus einem Ordner mit den ZIP-Dateien)
+      embed <Projekt>            fehlende Szenen-Embeddings berechnen
+      search <Projekt> <Text>    semantische Suche, beste 5 Clips
     """
 
 struct ToolError: Error, CustomStringConvertible {
@@ -106,6 +113,19 @@ do {
     case ("compile", 2): try compile(arguments[1])
     case ("selftest", 1): try selftest()
     case ("version", 1): print("sbtool \(BuildInfo.version)")
+    case ("probe", 2...): try await probe(Array(arguments.dropFirst()))
+    case ("truth", 2): try await checkTruth(arguments[1])
+    case ("import", 2...):
+        var rest = Array(arguments.dropFirst(2))
+        var parallel = 4
+        if let flag = rest.firstIndex(of: "--parallel"), flag + 1 < rest.count, let value = Int(rest[flag + 1]) {
+            parallel = value
+            rest.removeSubrange(flag...(flag + 1))
+        }
+        try await importFolder(arguments[1], output: rest.first, parallel: parallel)
+    case ("model-install", 1...2): try await installModel(source: arguments.count == 2 ? arguments[1] : nil)
+    case ("embed", 2): try await embedProject(arguments[1])
+    case ("search", 3...): try await search(arguments[1], query: arguments.dropFirst(2).joined(separator: " "))
     default:
         FileHandle.standardError.write(Data((usage + "\n").utf8))
         exit(2)

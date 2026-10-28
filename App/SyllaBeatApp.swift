@@ -13,6 +13,7 @@ struct SyllaBeatApp: App {
                 .environment(services)
         }
         .defaultSize(width: 1280, height: 820)
+        .commands { MediaCommands() }
 
         Settings {
             SettingsView()
@@ -39,5 +40,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
         documentToOpen == nil
+    }
+}
+
+/// Menüeinträge für das aktive Projektfenster.
+struct MediaCommands: Commands {
+    @FocusedValue(\.projectMedia) private var media
+
+    var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Section {
+                Button("Clips oder Song hinzufügen …") { media?.presentImportPanel() }
+                    .keyboardShortcut("i", modifiers: [.command, .shift])
+                    .disabled(media == nil)
+                Button("Medien neu verknüpfen …") { media?.presentRelinkPanel() }
+                    .disabled(media == nil)
+            }
+        }
     }
 }
