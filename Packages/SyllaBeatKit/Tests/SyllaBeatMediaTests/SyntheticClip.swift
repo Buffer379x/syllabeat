@@ -22,6 +22,18 @@ struct SyntheticClip {
         cutFrames.map { Double($0) * Double(rate.1) / Double(rate.0) }
     }
 
+    /// Wartet auf den Writer, bricht aber ab, wenn er scheitert (z. B. ohne Encoder auf einer VM), statt zu hängen.
+    static func waitUntilReady(_ input: AVAssetWriterInput, _ writer: AVAssetWriter) throws {
+        let deadline = Date().addingTimeInterval(20)
+        while !input.isReadyForMoreMediaData {
+            if writer.status == .failed { throw writer.error ?? CocoaError(.fileWriteUnknown) }
+            if Date() > deadline {
+                throw CocoaError(.fileWriteUnknown, userInfo: [NSDebugDescriptionErrorKey: "Writer hängt"])
+            }
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+    }
+
     func write(to url: URL) throws {
         try? FileManager.default.removeItem(at: url)
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
@@ -66,7 +78,7 @@ struct SyntheticClip {
                 allocator: nil, dataBuffer: block, dataReady: true, makeDataReadyCallback: nil, refcon: nil,
                 formatDescription: format, sampleCount: 1, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
                 sampleSizeEntryCount: 1, sampleSizeArray: &sampleSize, sampleBufferOut: &sample)
-            while !tc.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.001) }
+            try Self.waitUntilReady(tc, writer)
             tc.append(sample!)
             tc.markAsFinished()
         } else {
@@ -76,7 +88,7 @@ struct SyntheticClip {
         _ = timecodeInput
         var time = CMTime.zero
         for index in 0..<frames {
-            while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.001) }
+            try Self.waitUntilReady(input, writer)
             var buffer: CVPixelBuffer?
             CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &buffer)
             let pixels = buffer!
@@ -102,7 +114,9 @@ struct SyntheticClip {
         input.markAsFinished()
         let done = DispatchSemaphore(value: 0)
         writer.finishWriting { done.signal() }
-        done.wait()
+        guard done.wait(timeout: .now() + 30) == .success else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSDebugDescriptionErrorKey: "finishWriting hängt"])
+        }
         guard writer.status == .completed else { throw writer.error ?? CocoaError(.fileWriteUnknown) }
     }
 }

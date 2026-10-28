@@ -5,7 +5,7 @@ import Testing
 @testable import SyllaBeatCore
 @testable import SyllaBeatMedia
 
-@Suite struct MetadataTests {
+@Suite(.timeLimit(.minutes(2))) struct MetadataTests {
     @Test(arguments: [(Int32(24000), Int32(1001)), (25, 1), (50, 1), (60000, 1001)])
     func ratesAreExact(num: Int32, den: Int32) async throws {
         let folder = try TestFolder.make()
@@ -70,7 +70,7 @@ extension Clip {
     var hasWarningsForTest: Bool { !meta.warnings.isEmpty }
 }
 
-@Suite struct SceneTests {
+@Suite(.timeLimit(.minutes(2))) struct SceneTests {
     /// Schnitte werden framegenau gefunden, auch bei NTSC-Raten und mitten zwischen zwei Stichproben.
     @Test(arguments: [
         (Int32(25), Int32(1), [37, 80]), (24000, 1001, [50, 101]), (50, 1, [77]), (60000, 1001, [61, 143]),
@@ -124,7 +124,7 @@ extension Clip {
     }
 }
 
-@Suite struct FileTests {
+@Suite(.timeLimit(.minutes(1))) struct FileTests {
     /// Gleiche Werte wie `_fingerprint` in 0.2.0 (mit Python berechnet).
     @Test(arguments: [
         (300_000, "3967971546e03377dc1d0a57273c8b9a5a31c555ab3cd8ece38b86922af6756c"),
@@ -199,7 +199,7 @@ extension Clip {
 }
 
 /// Wandlung mit ffmpeg; läuft nur, wenn ffmpeg verfügbar ist (`SYLLABEAT_FFMPEG` oder installierte Komponente).
-@Suite(.enabled(if: FFmpeg.locate() != nil)) struct ConversionTests {
+@Suite(.enabled(if: FFmpeg.locate() != nil), .timeLimit(.minutes(2))) struct ConversionTests {
     @Test func mkvBecomesUsableWorkingCopy() async throws {
         let folder = try TestFolder.make()
         let source = folder.appendingPathComponent("zwei-farben.mkv")
