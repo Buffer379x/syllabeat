@@ -31,3 +31,8 @@ prompt.md
 ._*
 .idea/
 .vscode/
+
+# Xcode (0.3)
+xcuserdata/
+*.xcresult
+.swiftpm/

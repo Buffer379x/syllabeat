@@ -1,0 +1,3 @@
+// Einzige Versionsquelle der App. release.yml prüft den Tag gegen MARKETING_VERSION.
+MARKETING_VERSION = 0.3.0
+CURRENT_PROJECT_VERSION = 1

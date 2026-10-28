@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "name": "Basis 25p",
+  "video_dir": "/Volumes/Material/Clips",
+  "audio_path": "/Volumes/Material/Song/Sommer Lied (Master).wav",
+  "lyrics": "",
+  "timeline": {
+    "fps_num": 25,
+    "fps_den": 1,
+    "width": 1920,
+    "height": 1080
+  },
+  "clips": [
+    {
+      "id": "clip-a",
+      "path": "/Volumes/Material/Clips/strand_01.mov",
+      "name": "strand_01.mov",
+      "duration": 10.0,
+      "fps_num": 25,
+      "fps_den": 1,
+      "fps": 25.0,
+      "width": 1920,
+      "height": 1080,
+      "frame_count": 250,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 4.0
+        },
+        {
+          "start": 4.0,
+          "end": 10.0
+        }
+      ],
+      "description": "Wellen am Strand",
+      "tags": [
+        "Strand",
+        "Meer"
+      ]
+    },
+    {
+      "id": "clip-b",
+      "path": "/Volumes/Material/Clips/stadt_nacht.mp4",
+      "name": "stadt_nacht.mp4",
+      "duration": 8.0,
+      "fps_num": 50,
+      "fps_den": 1,
+      "fps": 50.0,
+      "width": 3840,
+      "height": 2160,
+      "frame_count": 400,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 8.0
+        }
+      ],
+      "description": "Stadt bei Nacht",
+      "tags": []
+    },
+    {
+      "id": "clip-c",
+      "path": "/Volumes/Material/Clips/wald.mov",
+      "name": "wald.mov",
+      "duration": 6.006,
+      "fps_num": 30000,
+      "fps_den": 1001,
+      "fps": 29.97002997002997,
+      "width": 1920,
+      "height": 1080,
+      "frame_count": 180,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 6.006
+        }
+      ],
+      "description": "Wald im Nebel",
+      "tags": []
+    }
+  ],
+  "audio": {
+    "duration": 12.4,
+    "beats": [
+      0.23,
+      0.73,
+      1.23,
+      1.73,
+      2.23,
+      2.73,
+      3.23,
+      3.73,
+      4.23,
+      4.73,
+      5.23,
+      5.73,
+      6.23,
+      6.73,
+      7.23,
+      7.73,
+      8.23,
+      8.73,
+      9.23,
+      9.73,
+      10.23,
+      10.73,
+      11.23,
+      11.73
+    ],
+    "sample_rate": 48000,
+    "channels": 2,
+    "lines": [],
+    "sections": [
+      {
+        "id": "s1",
+        "label": "Strophe",
+        "start": 0.0,
+        "end": 2.73,
+        "repeat_of": null
+      },
+      {
+        "id": "s2",
+        "label": "Refrain",
+        "start": 2.73,
+        "end": 5.73,
+        "repeat_of": null
+      },
+      {
+        "id": "s3",
+        "label": "Strophe",
+        "start": 5.73,
+        "end": 8.73,
+        "repeat_of": null
+      },
+      {
+        "id": "s4",
+        "label": "Refrain",
+        "start": 8.73,
+        "end": 11.73,
+        "repeat_of": "s2"
+      },
+      {
+        "id": "s5",
+        "label": "Outro",
+        "start": 11.73,
+        "end": 12.4,
+        "repeat_of": null
+      }
+    ],
+    "words": [],
+    "warnings": []
+  },
+  "plan": {
+    "version": 1,
+    "shots": [
+      {
+        "clip_id": "clip-a",
+        "start_beat": 0,
+        "end_beat": 4,
+        "source_in": 4.0
+      },
+      {
+        "clip_id": "clip-c",
+        "start_beat": 4,
+        "end_beat": 6,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "clip-b",
+        "start_beat": 6,
+        "end_beat": 8,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "clip-a",
+        "start_beat": 8,
+        "end_beat": 10,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "clip-b",
+        "start_beat": 10,
+        "end_beat": 12,
+        "source_in": 1.25
+      },
+      {
+        "clip_id": "clip-c",
+        "start_beat": 12,
+        "end_beat": 16,
+        "source_in": 1.25
+      },
+      {
+        "clip_id": "clip-a",
+        "start_beat": 16,
+        "end_beat": 18,
+        "source_in": 5.97
+      },
+      {
+        "clip_id": "clip-b",
+        "start_beat": 18,
+        "end_beat": 20,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "clip-a",
+        "start_beat": 20,
+        "end_beat": 22,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "clip-b",
+        "start_beat": 22,
+        "end_beat": 24,
+        "source_in": 1.25
+      },
+      {
+        "clip_id": "clip-c",
+        "start_beat": 24,
+        "end_beat": 25,
+        "source_in": 3.5
+      }
+    ]
+  },
+  "cut_style": {
+    "variation": "gleichmaessig",
+    "verse_beats": 4,
+    "chorus_beats": 2,
+    "chorus_faster": true,
+    "seed": 1
+  }
+}

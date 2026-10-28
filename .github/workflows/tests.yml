@@ -1,13 +1,12 @@
 name: Tests
 
-# Fast, inexpensive checks on every push and pull request. The macOS-only parts
-# (MLX Whisper, Metal, macOS rename syscalls) are skipped here and run in the
-# release workflow on Apple Silicon.
+# swift: SyllaBeat 0.3 (Swift) auf Apple Silicon mit Xcode 27 – dieselben Prüfungen wie scripts/check.sh.
+# python: SyllaBeat 0.2 (Python), solange der Python-Code im Repository liegt.
 
 on:
   push:
-    branches: ["main"]
-    paths-ignore: ["**.md", "BEDIENUNG.html"]
+    branches: ["main", "next/0.3"]
+    paths-ignore: ["**.md", "BEDIENUNG.html", "work/**"]
   pull_request:
   workflow_dispatch:
 
@@ -15,7 +14,29 @@ permissions:
   contents: read
 
 jobs:
-  unit:
+  swift:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Werkzeuge
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Metal-Toolchain (für spätere MLX-Shader)
+        run: xcodebuild -downloadComponent MetalToolchain
+      - name: Prüfungen (scripts/check.sh)
+        run: scripts/check.sh
+      - name: Testergebnisse bei Fehlern sichern
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-logs
+          path: build/DerivedData/Logs
+          retention-days: 7
+
+  python:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
