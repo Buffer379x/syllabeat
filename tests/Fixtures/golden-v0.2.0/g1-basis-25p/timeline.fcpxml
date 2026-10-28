@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.8">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p25" frameDuration="1/25s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)" />
+    <asset id="r2" name="strand_01.mov" src="file:///Volumes/Material/Clips/strand_01.mov" start="0s" duration="10s" hasVideo="1" format="r1" />
+    <format id="r3" name="FFVideoFormat1080p2997" frameDuration="1001/30000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)" />
+    <asset id="r4" name="wald.mov" src="file:///Volumes/Material/Clips/wald.mov" start="0s" duration="3003/500s" hasVideo="1" format="r3" />
+    <format id="r5" name="FFVideoFormat2160p50" frameDuration="1/50s" width="3840" height="2160" colorSpace="1-1-1 (Rec. 709)" />
+    <asset id="r6" name="stadt_nacht.mp4" src="file:///Volumes/Material/Clips/stadt_nacht.mp4" start="0s" duration="8s" hasVideo="1" format="r5" />
+    <asset id="r7" name="Sommer Lied (Master).wav" src="file:///Volumes/Material/Song/Sommer%20Lied%20%28Master%29.wav" start="0s" duration="62/5s" hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000" />
+  </resources>
+  <library>
+    <event name="SyllaBeat">
+      <project name="Basis 25p">
+        <sequence format="r1" duration="62/5s" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k">
+          <spine>
+            <asset-clip name="strand_01.mov" ref="r2" offset="0s" start="4s" duration="43/25s" format="r1" tcFormat="NDF">
+              <asset-clip name="Sommer Lied (Master).wav" ref="r7" lane="-1" offset="4s" start="0s" duration="62/5s" audioRole="dialogue.music" />
+            </asset-clip>
+            <asset-clip name="wald.mov" ref="r4" offset="43/25s" start="0s" duration="1s" format="r3" tcFormat="NDF" />
+            <asset-clip name="stadt_nacht.mp4" ref="r6" offset="68/25s" start="0s" duration="1s" format="r5" tcFormat="NDF" />
+            <asset-clip name="strand_01.mov" ref="r2" offset="93/25s" start="0s" duration="1s" format="r1" tcFormat="NDF" />
+            <asset-clip name="stadt_nacht.mp4" ref="r6" offset="118/25s" start="63/50s" duration="1s" format="r5" tcFormat="NDF" />
+            <asset-clip name="wald.mov" ref="r4" offset="143/25s" start="37037/30000s" duration="2s" format="r3" tcFormat="NDF" />
+            <asset-clip name="strand_01.mov" ref="r2" offset="193/25s" start="149/25s" duration="1s" format="r1" tcFormat="NDF" />
+            <asset-clip name="stadt_nacht.mp4" ref="r6" offset="218/25s" start="0s" duration="1s" format="r5" tcFormat="NDF" />
+            <asset-clip name="strand_01.mov" ref="r2" offset="243/25s" start="0s" duration="1s" format="r1" tcFormat="NDF" />
+            <asset-clip name="stadt_nacht.mp4" ref="r6" offset="268/25s" start="63/50s" duration="1s" format="r5" tcFormat="NDF" />
+            <asset-clip name="wald.mov" ref="r4" offset="293/25s" start="7007/2000s" duration="17/25s" format="r3" tcFormat="NDF" />
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

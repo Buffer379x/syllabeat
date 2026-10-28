@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.8">
+  <resources>
+    <format id="r1" frameDuration="1001/60000s" width="1080" height="1920" />
+    <format id="r2" frameDuration="1/30s" width="1080" height="1920" />
+    <asset id="r3" name="hoch_01.mov" src="file:///Volumes/Material/Clips/hoch_01.mov" start="0s" duration="7s" hasVideo="1" format="r2" />
+    <format id="r4" frameDuration="1/30s" width="1080" height="1920" />
+    <asset id="r5" name="hoch_02.mov" src="file:///Volumes/Material/Clips/hoch_02.mov" start="0s" duration="8s" hasVideo="1" format="r4" />
+    <format id="r6" frameDuration="1/30s" width="1080" height="1920" />
+    <asset id="r7" name="hoch_04.mov" src="file:///Volumes/Material/Clips/hoch_04.mov" start="0s" duration="10s" hasVideo="1" format="r6" />
+    <format id="r8" frameDuration="1/30s" width="1080" height="1920" />
+    <asset id="r9" name="hoch_06.mov" src="file:///Volumes/Material/Clips/hoch_06.mov" start="0s" duration="12s" hasVideo="1" format="r8" />
+    <format id="r10" frameDuration="1/30s" width="1080" height="1920" />
+    <asset id="r11" name="hoch_03.mov" src="file:///Volumes/Material/Clips/hoch_03.mov" start="0s" duration="9s" hasVideo="1" format="r10" />
+    <format id="r12" frameDuration="1/30s" width="1080" height="1920" />
+    <asset id="r13" name="hoch_08.mov" src="file:///Volumes/Material/Clips/hoch_08.mov" start="0s" duration="14s" hasVideo="1" format="r12" />
+    <format id="r14" frameDuration="1/30s" width="1080" height="1920" />
+    <asset id="r15" name="hoch_07.mov" src="file:///Volumes/Material/Clips/hoch_07.mov" start="0s" duration="13s" hasVideo="1" format="r14" />
+    <format id="r16" frameDuration="1/30s" width="1080" height="1920" />
+    <asset id="r17" name="hoch_05.mov" src="file:///Volumes/Material/Clips/hoch_05.mov" start="0s" duration="11s" hasVideo="1" format="r16" />
+    <asset id="r18" name="Sommer Lied (Master).wav" src="file:///Volumes/Material/Song/Sommer%20Lied%20%28Master%29.wav" start="0s" duration="60s" hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000" />
+  </resources>
+  <library>
+    <event name="SyllaBeat">
+      <project name="Hochformat 59,94">
+        <sequence format="r1" duration="899899/15000s" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k">
+          <spine>
+            <asset-clip name="hoch_01.mov" ref="r3" offset="0s" start="0s" duration="127127/60000s" format="r2" tcFormat="NDF">
+              <asset-clip name="Sommer Lied (Master).wav" ref="r18" lane="-1" offset="0s" start="0s" duration="60s" audioRole="dialogue.music" />
+            </asset-clip>
+            <asset-clip name="hoch_02.mov" ref="r5" offset="127127/60000s" start="4s" duration="3003/1000s" format="r4" tcFormat="NDF" />
+            <asset-clip name="hoch_04.mov" ref="r7" offset="307307/60000s" start="0s" duration="1001/1000s" format="r6" tcFormat="NDF" />
+            <asset-clip name="hoch_06.mov" ref="r9" offset="367367/60000s" start="0s" duration="1001/500s" format="r8" tcFormat="NDF" />
+            <asset-clip name="hoch_03.mov" ref="r11" offset="487487/60000s" start="0s" duration="1001/2000s" format="r10" tcFormat="NDF" />
+            <asset-clip name="hoch_08.mov" ref="r13" offset="517517/60000s" start="0s" duration="1001/1000s" format="r12" tcFormat="NDF" />
+            <asset-clip name="hoch_07.mov" ref="r15" offset="577577/60000s" start="0s" duration="1001/2000s" format="r14" tcFormat="NDF" />
+            <asset-clip name="hoch_05.mov" ref="r17" offset="607607/60000s" start="11/2s" duration="119119/60000s" format="r16" tcFormat="NDF" />
+            <asset-clip name="hoch_04.mov" ref="r7" offset="121121/10000s" start="5s" duration="1001/2000s" format="r6" tcFormat="NDF" />
+            <asset-clip name="hoch_01.mov" ref="r3" offset="63063/5000s" start="7/2s" duration="1001/2000s" format="r2" tcFormat="NDF" />
+            <asset-clip name="hoch_02.mov" ref="r5" offset="131131/10000s" start="0s" duration="1001/500s" format="r4" tcFormat="NDF" />
+            <asset-clip name="hoch_05.mov" ref="r17" offset="151151/10000s" start="233/30s" duration="1001/1000s" format="r16" tcFormat="NDF" />
+            <asset-clip name="hoch_06.mov" ref="r9" offset="161161/10000s" start="6s" duration="1001/1000s" format="r8" tcFormat="NDF" />
+            <asset-clip name="hoch_07.mov" ref="r15" offset="171171/10000s" start="23/30s" duration="1001/500s" format="r14" tcFormat="NDF" />
+            <asset-clip name="hoch_08.mov" ref="r13" offset="191191/10000s" start="19/15s" duration="3003/2000s" format="r12" tcFormat="NDF" />
+            <asset-clip name="hoch_03.mov" ref="r11" offset="103103/5000s" start="9/2s" duration="3003/2000s" format="r10" tcFormat="NDF" />
+            <asset-clip name="hoch_05.mov" ref="r17" offset="221221/10000s" start="0s" duration="3003/2000s" format="r16" tcFormat="NDF" />
+            <asset-clip name="hoch_03.mov" ref="r11" offset="59059/2500s" start="23/30s" duration="3003/1000s" format="r10" tcFormat="NDF" />
+            <asset-clip name="hoch_07.mov" ref="r15" offset="133133/5000s" start="3s" duration="3003/2000s" format="r14" tcFormat="NDF" />
+            <asset-clip name="hoch_03.mov" ref="r11" offset="281281/10000s" start="0s" duration="29029/60000s" format="r10" tcFormat="NDF" />
+            <asset-clip name="hoch_08.mov" ref="r13" offset="343343/12000s" start="0s" duration="1001/1000s" format="r12" tcFormat="NDF" />
+            <asset-clip name="hoch_07.mov" ref="r15" offset="71071/2400s" start="0s" duration="1001/2000s" format="r14" tcFormat="NDF" />
+            <asset-clip name="hoch_05.mov" ref="r17" offset="361361/12000s" start="11/2s" duration="1001/500s" format="r16" tcFormat="NDF" />
+            <asset-clip name="hoch_04.mov" ref="r7" offset="77077/2400s" start="5s" duration="1001/2000s" format="r6" tcFormat="NDF" />
+            <asset-clip name="hoch_01.mov" ref="r3" offset="391391/12000s" start="7/2s" duration="1001/2000s" format="r2" tcFormat="NDF" />
+            <asset-clip name="hoch_02.mov" ref="r5" offset="397397/12000s" start="0s" duration="1001/500s" format="r4" tcFormat="NDF" />
+            <asset-clip name="hoch_05.mov" ref="r17" offset="421421/12000s" start="233/30s" duration="1001/1000s" format="r16" tcFormat="NDF" />
+            <asset-clip name="hoch_08.mov" ref="r13" offset="433433/12000s" start="143/30s" duration="1001/500s" format="r12" tcFormat="NDF" />
+            <asset-clip name="hoch_05.mov" ref="r17" offset="457457/12000s" start="5/2s" duration="1001/1000s" format="r16" tcFormat="NDF" />
+            <asset-clip name="hoch_08.mov" ref="r13" offset="469469/12000s" start="7s" duration="1001/250s" format="r12" tcFormat="NDF" />
+            <asset-clip name="hoch_04.mov" ref="r7" offset="517517/12000s" start="109/15s" duration="1001/1000s" format="r6" tcFormat="NDF" />
+            <asset-clip name="hoch_03.mov" ref="r11" offset="529529/12000s" start="0s" duration="1001/2000s" format="r10" tcFormat="NDF" />
+            <asset-clip name="hoch_08.mov" ref="r13" offset="107107/2400s" start="0s" duration="59059/60000s" format="r12" tcFormat="NDF" />
+            <asset-clip name="hoch_07.mov" ref="r15" offset="1368367/30000s" start="0s" duration="1001/2000s" format="r14" tcFormat="NDF" />
+            <asset-clip name="hoch_05.mov" ref="r17" offset="691691/15000s" start="11/2s" duration="1001/500s" format="r16" tcFormat="NDF" />
+            <asset-clip name="hoch_04.mov" ref="r7" offset="721721/15000s" start="5s" duration="1001/2000s" format="r6" tcFormat="NDF" />
+            <asset-clip name="hoch_01.mov" ref="r3" offset="1458457/30000s" start="7/2s" duration="1001/2000s" format="r2" tcFormat="NDF" />
+            <asset-clip name="hoch_02.mov" ref="r5" offset="92092/1875s" start="0s" duration="1001/500s" format="r4" tcFormat="NDF" />
+            <asset-clip name="hoch_05.mov" ref="r17" offset="383383/7500s" start="233/30s" duration="1001/1000s" format="r16" tcFormat="NDF" />
+            <asset-clip name="hoch_08.mov" ref="r13" offset="781781/15000s" start="169/15s" duration="3003/2000s" format="r12" tcFormat="NDF" />
+            <asset-clip name="hoch_06.mov" ref="r9" offset="1608607/30000s" start="19/2s" duration="3003/2000s" format="r8" tcFormat="NDF" />
+            <asset-clip name="hoch_04.mov" ref="r7" offset="413413/7500s" start="19/15s" duration="1001/500s" format="r6" tcFormat="NDF" />
+            <asset-clip name="hoch_07.mov" ref="r15" offset="107107/1875s" start="9s" duration="43043/15000s" format="r14" tcFormat="NDF" />
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

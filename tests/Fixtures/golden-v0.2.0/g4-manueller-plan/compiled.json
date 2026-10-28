@@ -1,0 +1,113 @@
+{
+  "fps_num": 30,
+  "fps_den": 1,
+  "width": 1280,
+  "height": 720,
+  "duration_frames": 300,
+  "boundaries": [
+    0.0,
+    1.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0,
+    6.0,
+    7.0,
+    8.0,
+    9.0,
+    10.0
+  ],
+  "boundaries_frames": [
+    0,
+    30,
+    60,
+    90,
+    120,
+    150,
+    180,
+    210,
+    240,
+    270,
+    300
+  ],
+  "shots": [
+    {
+      "clip_id": "m1",
+      "start_beat": 0,
+      "end_beat": 2,
+      "source_in": 1.25,
+      "start": 0,
+      "end": 60,
+      "duration_frames": 60,
+      "source_in_frame": 38,
+      "source_out_frame": 98,
+      "source_fps_num": 30,
+      "source_fps_den": 1
+    },
+    {
+      "clip_id": "m2",
+      "start_beat": 2,
+      "end_beat": 4,
+      "source_in": 3.5,
+      "start": 60,
+      "end": 120,
+      "duration_frames": 60,
+      "source_in_frame": 84,
+      "source_out_frame": 132,
+      "source_fps_num": 24,
+      "source_fps_den": 1
+    },
+    {
+      "clip_id": "m1",
+      "start_beat": 4,
+      "end_beat": 5,
+      "source_in": 12.0,
+      "start": 120,
+      "end": 150,
+      "duration_frames": 30,
+      "source_in_frame": 360,
+      "source_out_frame": 390,
+      "source_fps_num": 30,
+      "source_fps_den": 1
+    },
+    {
+      "clip_id": "m1",
+      "start_beat": 5,
+      "end_beat": 6,
+      "source_in": 2.25,
+      "start": 150,
+      "end": 180,
+      "duration_frames": 30,
+      "source_in_frame": 68,
+      "source_out_frame": 98,
+      "source_fps_num": 30,
+      "source_fps_den": 1
+    },
+    {
+      "clip_id": "m2",
+      "start_beat": 6,
+      "end_beat": 8,
+      "source_in": 3.5,
+      "start": 180,
+      "end": 240,
+      "duration_frames": 60,
+      "source_in_frame": 84,
+      "source_out_frame": 132,
+      "source_fps_num": 24,
+      "source_fps_den": 1
+    },
+    {
+      "clip_id": "m1",
+      "start_beat": 8,
+      "end_beat": 10,
+      "source_in": 20.0,
+      "start": 240,
+      "end": 300,
+      "duration_frames": 60,
+      "source_in_frame": 600,
+      "source_out_frame": 660,
+      "source_fps_num": 30,
+      "source_fps_den": 1
+    }
+  ]
+}

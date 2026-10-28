@@ -1,0 +1,39 @@
+name: CI-Probe 0.3.0 (M0)
+
+# Prüft, ob der Apple-Silicon-Runner mit Xcode 27 die ML-Abhängigkeiten
+# (WhisperKit, MLX mit Metal-Shadern) baut und Swift Testing ausführt.
+
+on:
+  push:
+    branches: ["next/0.3"]
+    paths: ["tools/ci-probe/**", ".github/workflows/ci-probe.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: tools/ci-probe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Werkzeuge
+        run: |
+          xcodebuild -version
+          swift --version
+          sw_vers
+          sysctl -n machdep.cpu.brand_string
+      - name: Metal-Toolchain (für MLX-Shader)
+        run: xcodebuild -downloadComponent MetalToolchain
+      - name: Swift Testing
+        run: swift test
+      - name: Build mit Metal-Shadern
+        run: |
+          xcodebuild -scheme CIProbe -configuration Release -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath .dd -skipPackagePluginValidation -skipMacroValidation build
+      - name: Ausführen (Metal auf dem Runner)
+        run: .dd/Build/Products/Release/CIProbe || echo "::warning::Ausführung ohne Metal-Gerät fehlgeschlagen"

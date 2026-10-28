@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "name": "NTSC 23,976 – Umlaute",
+  "video_dir": "/Volumes/Material/Clips",
+  "audio_path": "/Volumes/Material/Song/Sommer Lied (Master).wav",
+  "lyrics": "",
+  "timeline": {
+    "fps_num": 24000,
+    "fps_den": 1001,
+    "width": 1920,
+    "height": 1080
+  },
+  "clips": [
+    {
+      "id": "ü1",
+      "path": "/Volumes/Material/Clips/Über Brücke 01.mov",
+      "name": "Über Brücke 01.mov",
+      "duration": 14.0,
+      "fps_num": 24000,
+      "fps_den": 1001,
+      "fps": 23.976023976023978,
+      "width": 1920,
+      "height": 1080,
+      "frame_count": 335,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 14.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "p2",
+      "path": "/Volumes/Material/Clips/50% Regen #2.mp4",
+      "name": "50% Regen #2.mp4",
+      "duration": 9.5,
+      "fps_num": 60000,
+      "fps_den": 1001,
+      "fps": 59.94005994005994,
+      "width": 1920,
+      "height": 1080,
+      "frame_count": 569,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 9.5
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "k3",
+      "path": "/Volumes/Material/Clips/Küste & Möwen.mov",
+      "name": "Küste & Möwen.mov",
+      "duration": 20.0,
+      "fps_num": 25,
+      "fps_den": 1,
+      "fps": 25.0,
+      "width": 2048,
+      "height": 858,
+      "frame_count": 500,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 20.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    }
+  ],
+  "audio": {
+    "duration": 20.0,
+    "beats": [
+      0.31,
+      0.721211,
+      1.139773,
+      1.554152,
+      1.974146,
+      2.394663,
+      2.801736,
+      3.207552,
+      3.633151,
+      4.044875,
+      4.455999,
+      4.885395,
+      5.302181,
+      5.727756,
+      6.144689,
+      6.565526,
+      6.974641,
+      7.395378,
+      7.821711,
+      8.239767,
+      8.663057,
+      9.084671,
+      9.491708,
+      9.915405,
+      10.335092,
+      10.747822,
+      11.154067,
+      11.580339,
+      11.997185,
+      12.419937,
+      12.846528,
+      13.269168,
+      13.696774,
+      14.111753,
+      14.536475,
+      14.952646,
+      15.3806,
+      15.807193,
+      16.215032,
+      16.623795,
+      17.034502,
+      17.463174,
+      17.879142,
+      18.299681,
+      18.712406,
+      19.13008
+    ],
+    "sample_rate": 48000,
+    "channels": 2,
+    "lines": [],
+    "sections": [],
+    "words": [],
+    "warnings": []
+  },
+  "plan": {
+    "version": 1,
+    "shots": [
+      {
+        "clip_id": "ü1",
+        "start_beat": 0,
+        "end_beat": 8,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "p2",
+        "start_beat": 8,
+        "end_beat": 16,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "k3",
+        "start_beat": 16,
+        "end_beat": 21,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "ü1",
+        "start_beat": 21,
+        "end_beat": 29,
+        "source_in": 3.461
+      },
+      {
+        "clip_id": "k3",
+        "start_beat": 29,
+        "end_beat": 33,
+        "source_in": 2.377
+      },
+      {
+        "clip_id": "p2",
+        "start_beat": 33,
+        "end_beat": 38,
+        "source_in": 3.586
+      },
+      {
+        "clip_id": "k3",
+        "start_beat": 38,
+        "end_beat": 42,
+        "source_in": 4.295
+      },
+      {
+        "clip_id": "ü1",
+        "start_beat": 42,
+        "end_beat": 46,
+        "source_in": 7.047
+      },
+      {
+        "clip_id": "p2",
+        "start_beat": 46,
+        "end_beat": 47,
+        "source_in": 5.963
+      }
+    ]
+  },
+  "cut_style": {
+    "variation": "abwechslungsreich",
+    "verse_beats": 4,
+    "chorus_beats": 2,
+    "chorus_faster": true,
+    "seed": 11
+  }
+}

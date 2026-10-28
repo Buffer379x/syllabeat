@@ -1,0 +1,35 @@
+TITLE: Basis 25p
+FCM: NON-DROP FRAME
+
+001  AX       V     C        00:00:04:00 00:00:05:18 01:00:00:00 01:00:01:18
+* FROM CLIP NAME: strand_01.mov
+
+002  AX       V     C        00:00:00:00 00:00:00:25 01:00:01:18 01:00:02:18
+* FROM CLIP NAME: wald.mov
+
+003  AX       V     C        00:00:00:00 00:00:00:25 01:00:02:18 01:00:03:18
+* FROM CLIP NAME: stadt_nacht.mp4
+
+004  AX       V     C        00:00:00:00 00:00:01:00 01:00:03:18 01:00:04:18
+* FROM CLIP NAME: strand_01.mov
+
+005  AX       V     C        00:00:01:13 00:00:01:38 01:00:04:18 01:00:05:18
+* FROM CLIP NAME: stadt_nacht.mp4
+
+006  AX       V     C        00:00:01:07 00:00:02:27 01:00:05:18 01:00:07:18
+* FROM CLIP NAME: wald.mov
+
+007  AX       V     C        00:00:05:24 00:00:06:24 01:00:07:18 01:00:08:18
+* FROM CLIP NAME: strand_01.mov
+
+008  AX       V     C        00:00:00:00 00:00:00:25 01:00:08:18 01:00:09:18
+* FROM CLIP NAME: stadt_nacht.mp4
+
+009  AX       V     C        00:00:00:00 00:00:01:00 01:00:09:18 01:00:10:18
+* FROM CLIP NAME: strand_01.mov
+
+010  AX       V     C        00:00:01:13 00:00:01:38 01:00:10:18 01:00:11:18
+* FROM CLIP NAME: stadt_nacht.mp4
+
+011  AX       V     C        00:00:03:15 00:00:04:02 01:00:11:18 01:00:12:10
+* FROM CLIP NAME: wald.mov

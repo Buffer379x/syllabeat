@@ -1,0 +1,20 @@
+TITLE: Manueller Plan
+FCM: NON-DROP FRAME
+
+001  AX       V     C        00:00:01:08 00:00:03:08 01:00:00:00 01:00:02:00
+* FROM CLIP NAME: eins.mov
+
+002  AX       V     C        00:00:03:12 00:00:06:00 01:00:02:00 01:00:04:00
+* FROM CLIP NAME: zwei.mov
+
+003  AX       V     C        00:00:12:00 00:00:13:00 01:00:04:00 01:00:05:00
+* FROM CLIP NAME: eins.mov
+
+004  AX       V     C        00:00:02:08 00:00:03:08 01:00:05:00 01:00:06:00
+* FROM CLIP NAME: eins.mov
+
+005  AX       V     C        00:00:03:12 00:00:06:00 01:00:06:00 01:00:08:00
+* FROM CLIP NAME: zwei.mov
+
+006  AX       V     C        00:00:20:00 00:00:22:00 01:00:08:00 01:00:10:00
+* FROM CLIP NAME: eins.mov

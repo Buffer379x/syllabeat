@@ -1,0 +1,657 @@
+{
+  "version": 1,
+  "name": "Hochformat 59,94",
+  "video_dir": "/Volumes/Material/Clips",
+  "audio_path": "/Volumes/Material/Song/Sommer Lied (Master).wav",
+  "lyrics": "",
+  "timeline": {
+    "fps_num": 60000,
+    "fps_den": 1001,
+    "width": 1080,
+    "height": 1920
+  },
+  "clips": [
+    {
+      "id": "v1",
+      "path": "/Volumes/Material/Clips/hoch_01.mov",
+      "name": "hoch_01.mov",
+      "duration": 7.0,
+      "fps_num": 30,
+      "fps_den": 1,
+      "fps": 30.0,
+      "width": 1080,
+      "height": 1920,
+      "frame_count": 210,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 3.5
+        },
+        {
+          "start": 3.5,
+          "end": 7.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "v2",
+      "path": "/Volumes/Material/Clips/hoch_02.mov",
+      "name": "hoch_02.mov",
+      "duration": 8.0,
+      "fps_num": 30,
+      "fps_den": 1,
+      "fps": 30.0,
+      "width": 1080,
+      "height": 1920,
+      "frame_count": 240,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 4.0
+        },
+        {
+          "start": 4.0,
+          "end": 8.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "v3",
+      "path": "/Volumes/Material/Clips/hoch_03.mov",
+      "name": "hoch_03.mov",
+      "duration": 9.0,
+      "fps_num": 30,
+      "fps_den": 1,
+      "fps": 30.0,
+      "width": 1080,
+      "height": 1920,
+      "frame_count": 270,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 4.5
+        },
+        {
+          "start": 4.5,
+          "end": 9.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "v4",
+      "path": "/Volumes/Material/Clips/hoch_04.mov",
+      "name": "hoch_04.mov",
+      "duration": 10.0,
+      "fps_num": 30,
+      "fps_den": 1,
+      "fps": 30.0,
+      "width": 1080,
+      "height": 1920,
+      "frame_count": 300,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 5.0
+        },
+        {
+          "start": 5.0,
+          "end": 10.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "v5",
+      "path": "/Volumes/Material/Clips/hoch_05.mov",
+      "name": "hoch_05.mov",
+      "duration": 11.0,
+      "fps_num": 30,
+      "fps_den": 1,
+      "fps": 30.0,
+      "width": 1080,
+      "height": 1920,
+      "frame_count": 330,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 5.5
+        },
+        {
+          "start": 5.5,
+          "end": 11.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "v6",
+      "path": "/Volumes/Material/Clips/hoch_06.mov",
+      "name": "hoch_06.mov",
+      "duration": 12.0,
+      "fps_num": 30,
+      "fps_den": 1,
+      "fps": 30.0,
+      "width": 1080,
+      "height": 1920,
+      "frame_count": 360,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 6.0
+        },
+        {
+          "start": 6.0,
+          "end": 12.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "v7",
+      "path": "/Volumes/Material/Clips/hoch_07.mov",
+      "name": "hoch_07.mov",
+      "duration": 13.0,
+      "fps_num": 30,
+      "fps_den": 1,
+      "fps": 30.0,
+      "width": 1080,
+      "height": 1920,
+      "frame_count": 390,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 6.5
+        },
+        {
+          "start": 6.5,
+          "end": 13.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    },
+    {
+      "id": "v8",
+      "path": "/Volumes/Material/Clips/hoch_08.mov",
+      "name": "hoch_08.mov",
+      "duration": 14.0,
+      "fps_num": 30,
+      "fps_den": 1,
+      "fps": 30.0,
+      "width": 1080,
+      "height": 1920,
+      "frame_count": 420,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 7.0
+        },
+        {
+          "start": 7.0,
+          "end": 14.0
+        }
+      ],
+      "description": "",
+      "tags": []
+    }
+  ],
+  "audio": {
+    "duration": 60.0,
+    "beats": [
+      0.62,
+      1.12,
+      1.62,
+      2.12,
+      2.62,
+      3.12,
+      3.62,
+      4.12,
+      4.62,
+      5.12,
+      5.62,
+      6.12,
+      6.62,
+      7.12,
+      7.62,
+      8.12,
+      8.62,
+      9.12,
+      9.62,
+      10.12,
+      10.62,
+      11.12,
+      11.62,
+      12.12,
+      12.62,
+      13.12,
+      13.62,
+      14.12,
+      14.62,
+      15.12,
+      15.62,
+      16.12,
+      16.62,
+      17.12,
+      17.62,
+      18.12,
+      18.62,
+      19.12,
+      19.62,
+      20.12,
+      20.62,
+      21.12,
+      21.62,
+      22.12,
+      22.62,
+      23.12,
+      23.62,
+      24.12,
+      24.62,
+      25.12,
+      25.62,
+      26.12,
+      26.62,
+      27.12,
+      27.62,
+      28.12,
+      28.62,
+      29.12,
+      29.62,
+      30.12,
+      30.62,
+      31.12,
+      31.62,
+      32.12,
+      32.62,
+      33.12,
+      33.62,
+      34.12,
+      34.62,
+      35.12,
+      35.62,
+      36.12,
+      36.62,
+      37.12,
+      37.62,
+      38.12,
+      38.62,
+      39.12,
+      39.62,
+      40.12,
+      40.62,
+      41.12,
+      41.62,
+      42.12,
+      42.62,
+      43.12,
+      43.62,
+      44.12,
+      44.62,
+      45.12,
+      45.62,
+      46.12,
+      46.62,
+      47.12,
+      47.62,
+      48.12,
+      48.62,
+      49.12,
+      49.62,
+      50.12,
+      50.62,
+      51.12,
+      51.62,
+      52.12,
+      52.62,
+      53.12,
+      53.62,
+      54.12,
+      54.62,
+      55.12,
+      55.62,
+      56.12,
+      56.62,
+      57.12,
+      57.62,
+      58.12,
+      58.62,
+      59.12,
+      59.62
+    ],
+    "sample_rate": 48000,
+    "channels": 2,
+    "lines": [],
+    "sections": [
+      {
+        "id": "a",
+        "label": "Intro",
+        "start": 0.0,
+        "end": 8.12,
+        "repeat_of": null
+      },
+      {
+        "id": "b",
+        "label": "Refrain",
+        "start": 8.12,
+        "end": 16.12,
+        "repeat_of": null
+      },
+      {
+        "id": "c",
+        "label": "Strophe",
+        "start": 16.12,
+        "end": 28.12,
+        "repeat_of": null
+      },
+      {
+        "id": "d",
+        "label": "Refrain",
+        "start": 28.12,
+        "end": 36.12,
+        "repeat_of": "b"
+      },
+      {
+        "id": "e",
+        "label": "Bridge",
+        "start": 36.12,
+        "end": 44.12,
+        "repeat_of": null
+      },
+      {
+        "id": "f",
+        "label": "Refrain",
+        "start": 44.12,
+        "end": 52.12,
+        "repeat_of": "d"
+      },
+      {
+        "id": "g",
+        "label": "Outro",
+        "start": 52.12,
+        "end": 60.0,
+        "repeat_of": null
+      }
+    ],
+    "words": [],
+    "warnings": []
+  },
+  "plan": {
+    "version": 1,
+    "shots": [
+      {
+        "clip_id": "v1",
+        "start_beat": 0,
+        "end_beat": 4,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v2",
+        "start_beat": 4,
+        "end_beat": 10,
+        "source_in": 4.0
+      },
+      {
+        "clip_id": "v4",
+        "start_beat": 10,
+        "end_beat": 12,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v6",
+        "start_beat": 12,
+        "end_beat": 16,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v3",
+        "start_beat": 16,
+        "end_beat": 17,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v8",
+        "start_beat": 17,
+        "end_beat": 19,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v7",
+        "start_beat": 19,
+        "end_beat": 20,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v5",
+        "start_beat": 20,
+        "end_beat": 24,
+        "source_in": 5.5
+      },
+      {
+        "clip_id": "v4",
+        "start_beat": 24,
+        "end_beat": 25,
+        "source_in": 5.0
+      },
+      {
+        "clip_id": "v1",
+        "start_beat": 25,
+        "end_beat": 26,
+        "source_in": 3.5
+      },
+      {
+        "clip_id": "v2",
+        "start_beat": 26,
+        "end_beat": 30,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v5",
+        "start_beat": 30,
+        "end_beat": 32,
+        "source_in": 7.752
+      },
+      {
+        "clip_id": "v6",
+        "start_beat": 32,
+        "end_beat": 34,
+        "source_in": 6.0
+      },
+      {
+        "clip_id": "v7",
+        "start_beat": 34,
+        "end_beat": 38,
+        "source_in": 0.75
+      },
+      {
+        "clip_id": "v8",
+        "start_beat": 38,
+        "end_beat": 41,
+        "source_in": 1.251
+      },
+      {
+        "clip_id": "v3",
+        "start_beat": 41,
+        "end_beat": 44,
+        "source_in": 4.5
+      },
+      {
+        "clip_id": "v5",
+        "start_beat": 44,
+        "end_beat": 47,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v3",
+        "start_beat": 47,
+        "end_beat": 53,
+        "source_in": 0.75
+      },
+      {
+        "clip_id": "v7",
+        "start_beat": 53,
+        "end_beat": 56,
+        "source_in": 3.002
+      },
+      {
+        "clip_id": "v3",
+        "start_beat": 56,
+        "end_beat": 57,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v8",
+        "start_beat": 57,
+        "end_beat": 59,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v7",
+        "start_beat": 59,
+        "end_beat": 60,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v5",
+        "start_beat": 60,
+        "end_beat": 64,
+        "source_in": 5.5
+      },
+      {
+        "clip_id": "v4",
+        "start_beat": 64,
+        "end_beat": 65,
+        "source_in": 5.0
+      },
+      {
+        "clip_id": "v1",
+        "start_beat": 65,
+        "end_beat": 66,
+        "source_in": 3.5
+      },
+      {
+        "clip_id": "v2",
+        "start_beat": 66,
+        "end_beat": 70,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v5",
+        "start_beat": 70,
+        "end_beat": 72,
+        "source_in": 7.752
+      },
+      {
+        "clip_id": "v8",
+        "start_beat": 72,
+        "end_beat": 76,
+        "source_in": 4.753
+      },
+      {
+        "clip_id": "v5",
+        "start_beat": 76,
+        "end_beat": 78,
+        "source_in": 2.501
+      },
+      {
+        "clip_id": "v8",
+        "start_beat": 78,
+        "end_beat": 86,
+        "source_in": 7.0
+      },
+      {
+        "clip_id": "v4",
+        "start_beat": 86,
+        "end_beat": 88,
+        "source_in": 7.25
+      },
+      {
+        "clip_id": "v3",
+        "start_beat": 88,
+        "end_beat": 89,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v8",
+        "start_beat": 89,
+        "end_beat": 91,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v7",
+        "start_beat": 91,
+        "end_beat": 92,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v5",
+        "start_beat": 92,
+        "end_beat": 96,
+        "source_in": 5.5
+      },
+      {
+        "clip_id": "v4",
+        "start_beat": 96,
+        "end_beat": 97,
+        "source_in": 5.0
+      },
+      {
+        "clip_id": "v1",
+        "start_beat": 97,
+        "end_beat": 98,
+        "source_in": 3.5
+      },
+      {
+        "clip_id": "v2",
+        "start_beat": 98,
+        "end_beat": 102,
+        "source_in": 0.0
+      },
+      {
+        "clip_id": "v5",
+        "start_beat": 102,
+        "end_beat": 104,
+        "source_in": 7.752
+      },
+      {
+        "clip_id": "v8",
+        "start_beat": 104,
+        "end_beat": 107,
+        "source_in": 11.254
+      },
+      {
+        "clip_id": "v6",
+        "start_beat": 107,
+        "end_beat": 110,
+        "source_in": 9.501
+      },
+      {
+        "clip_id": "v4",
+        "start_beat": 110,
+        "end_beat": 114,
+        "source_in": 1.251
+      },
+      {
+        "clip_id": "v7",
+        "start_beat": 114,
+        "end_beat": 120,
+        "source_in": 9.002
+      }
+    ]
+  },
+  "cut_style": {
+    "variation": "wild",
+    "verse_beats": 4,
+    "chorus_beats": 2,
+    "chorus_faster": true,
+    "seed": 7
+  }
+}

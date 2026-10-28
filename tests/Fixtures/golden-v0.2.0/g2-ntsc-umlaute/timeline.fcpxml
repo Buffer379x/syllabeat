@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.8">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p2398" frameDuration="1001/24000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)" />
+    <asset id="r2" name="Über Brücke 01.mov" src="file:///Volumes/Material/Clips/%C3%9Cber%20Br%C3%BCcke%2001.mov" start="0s" duration="67067/4800s" hasVideo="1" format="r1" />
+    <format id="r3" name="FFVideoFormat1080p5994" frameDuration="1001/60000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)" />
+    <asset id="r4" name="50% Regen #2.mp4" src="file:///Volumes/Material/Clips/50%25%20Regen%20%232.mp4" start="0s" duration="569569/60000s" hasVideo="1" format="r3" />
+    <format id="r5" frameDuration="1/25s" width="2048" height="858" />
+    <asset id="r6" name="Küste &amp; Möwen.mov" src="file:///Volumes/Material/Clips/K%C3%BCste%20%26%20M%C3%B6wen.mov" start="0s" duration="20s" hasVideo="1" format="r5" />
+    <asset id="r7" name="Sommer Lied (Master).wav" src="file:///Volumes/Material/Song/Sommer%20Lied%20%28Master%29.wav" start="0s" duration="20s" hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000" />
+  </resources>
+  <library>
+    <event name="SyllaBeat">
+      <project name="NTSC 23,976 – Umlaute">
+        <sequence format="r1" duration="1001/50s" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k">
+          <spine>
+            <asset-clip name="Über Brücke 01.mov" ref="r2" offset="0s" start="0s" duration="77077/24000s" format="r1" tcFormat="NDF">
+              <asset-clip name="Sommer Lied (Master).wav" ref="r7" lane="-1" offset="0s" start="0s" duration="20s" audioRole="dialogue.music" />
+            </asset-clip>
+            <asset-clip name="50% Regen #2.mp4" ref="r4" offset="77077/24000s" start="0s" duration="1001/300s" format="r3" tcFormat="NDF" />
+            <asset-clip name="Küste &amp; Möwen.mov" ref="r6" offset="157157/24000s" start="0s" duration="17017/8000s" format="r5" tcFormat="NDF" />
+            <asset-clip name="Über Brücke 01.mov" ref="r2" offset="13013/1500s" start="83083/24000s" duration="1001/300s" format="r1" tcFormat="NDF" />
+            <asset-clip name="Küste &amp; Möwen.mov" ref="r6" offset="3003/250s" start="59/25s" duration="1001/600s" format="r5" tcFormat="NDF" />
+            <asset-clip name="50% Regen #2.mp4" ref="r4" offset="41041/3000s" start="43043/12000s" duration="17017/8000s" format="r3" tcFormat="NDF" />
+            <asset-clip name="Küste &amp; Möwen.mov" ref="r6" offset="379379/24000s" start="107/25s" duration="1001/600s" format="r5" tcFormat="NDF" />
+            <asset-clip name="Über Brücke 01.mov" ref="r2" offset="419419/24000s" start="169169/24000s" duration="1001/600s" format="r1" tcFormat="NDF" />
+            <asset-clip name="50% Regen #2.mp4" ref="r4" offset="153153/8000s" start="119119/20000s" duration="7007/8000s" format="r3" tcFormat="NDF" />
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

@@ -1,0 +1,29 @@
+TITLE: NTSC 23,976 – Umlaute
+FCM: NON-DROP FRAME
+
+001  AX       V     C        00:00:00:00 00:00:03:05 01:00:00:00 01:00:03:05
+* FROM CLIP NAME: Über Brücke 01.mov
+
+002  AX       V     C        00:00:00:00 00:00:01:20 01:00:03:05 01:00:06:13
+* FROM CLIP NAME: 50% Regen #2.mp4
+
+003  AX       V     C        00:00:00:00 00:00:02:01 01:00:06:13 01:00:08:16
+* FROM CLIP NAME: Küste & Möwen.mov
+
+004  AX       V     C        00:00:03:11 00:00:06:19 01:00:08:16 01:00:12:00
+* FROM CLIP NAME: Über Brücke 01.mov
+
+005  AX       V     C        00:00:02:09 00:00:03:24 01:00:12:00 01:00:13:16
+* FROM CLIP NAME: Küste & Möwen.mov
+
+006  AX       V     C        00:00:03:35 00:00:04:26 01:00:13:16 01:00:15:19
+* FROM CLIP NAME: 50% Regen #2.mp4
+
+007  AX       V     C        00:00:04:07 00:00:05:22 01:00:15:19 01:00:17:11
+* FROM CLIP NAME: Küste & Möwen.mov
+
+008  AX       V     C        00:00:07:01 00:00:08:17 01:00:17:11 01:00:19:03
+* FROM CLIP NAME: Über Brücke 01.mov
+
+009  AX       V     C        00:00:05:57 00:00:06:18 01:00:19:03 01:00:20:00
+* FROM CLIP NAME: 50% Regen #2.mp4
