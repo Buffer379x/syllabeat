@@ -35,7 +35,8 @@ final class MediaImportUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "-SBOpenDocument", project.path, "-SBImportPaths", folder.appendingPathComponent("Material").path,
-            "-ApplePersistenceIgnoreState", "YES", "-libraryShowsGrid", "YES", "-libraryFilter", "all",
+            "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)", "-AppleLocale", "de_DE",
+            "-libraryShowsGrid", "YES", "-libraryFilter", "all",
         ]
         app.launch()
 

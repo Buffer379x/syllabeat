@@ -8,7 +8,10 @@ final class ReviewScreenshots: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
         let path = try XCTUnwrap(environment["SB_REVIEW_PROJECT"], "SB_REVIEW_PROJECT nicht gesetzt")
         let app = XCUIApplication()
-        app.launchArguments = ["-SBOpenDocument", path, "-ApplePersistenceIgnoreState", "YES"]
+        app.launchArguments = [
+            "-SBOpenDocument", path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)", "-AppleLocale",
+            "de_DE",
+        ]
         if let folder = environment["SB_REVIEW_IMPORT"] { app.launchArguments += ["-SBImportPaths", folder] }
         if let appearance = environment["SB_REVIEW_APPEARANCE"] {
             app.launchArguments += ["-AppleInterfaceStyle", appearance]
@@ -80,7 +83,8 @@ final class SongReviewScreenshots: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SBOpenDocument", environment["SB_REVIEW_SONG"]!, "-ApplePersistenceIgnoreState", "YES",
+            "-SBOpenDocument", environment["SB_REVIEW_SONG"]!, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages",
+            "(de)", "-AppleLocale", "de_DE",
             "-SBImportPaths", environment["SB_REVIEW_IMPORT"]!,
         ]
         app.launch()

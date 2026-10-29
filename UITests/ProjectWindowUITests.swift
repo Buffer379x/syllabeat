@@ -17,7 +17,10 @@ final class ProjectWindowUITests: XCTestCase {
     @MainActor
     private func launch(opening url: URL) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES"]
+        app.launchArguments = [
+            "-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
+            "-AppleLocale", "de_DE",
+        ]
         app.launch()
         return app
     }

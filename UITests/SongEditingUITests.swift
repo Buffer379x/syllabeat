@@ -48,7 +48,10 @@ final class SongEditingUITests: XCTestCase {
     func testGridToolsUndoAndSectionMenu() throws {
         let url = try makeProject()
         let app = XCUIApplication()
-        app.launchArguments = ["-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES"]
+        app.launchArguments = [
+            "-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
+            "-AppleLocale", "de_DE",
+        ]
         app.launch()
         XCTAssertTrue(labelled(app, "120,0 BPM").waitForExistence(timeout: 15), "Timeline fehlt")
 
