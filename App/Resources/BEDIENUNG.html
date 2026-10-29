@@ -1,0 +1,82 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><title>SyllaBeat · Bedienung</title>
+<meta name="color-scheme" content="light dark">
+<style>
+body{max-width:860px;margin:48px auto;padding:0 24px;font:17px/1.65 -apple-system,BlinkMacSystemFont,sans-serif;color:#22313d;background:#f6f8fa}
+h1{font-size:40px;letter-spacing:-1px;margin-bottom:4px}h2{margin-top:40px;color:#176e59}h3{margin:24px 0 4px}
+code,kbd{background:#e7edef;padding:2px 5px;border-radius:4px;font-size:15px}a{color:#176e59}
+aside{padding:16px 22px;background:#e4f3ee;border-radius:10px}li{margin:6px 0}
+table{border-collapse:collapse;width:100%;font-size:15px}td,th{padding:6px 8px;border-bottom:1px solid #d6dee2;text-align:left;vertical-align:top}
+@media (prefers-color-scheme:dark){body{color:#dfe7ec;background:#14191d}h2,a{color:#5fd0b2}code,kbd{background:#26313a}aside{background:#173129}td,th{border-color:#2c3840}}
+</style>
+<h1>SyllaBeat</h1>
+<p>Musikvideo-Rohschnitt aus einem Song und einem Ordner voller Clips – Schnitte frame-genau auf Beats, Takten und gesungenen Silben. Version 0.3.0 · macOS 15 oder neuer · Apple Silicon.</p>
+<aside>Ziehe <strong>SyllaBeat.app</strong> aus dem DMG in den Programme-Ordner. Die App ist ad-hoc signiert, nicht notarisiert: Beim ersten Start meldet macOS, dass sie nicht geprüft werden kann. Öffne dann <em>Systemeinstellungen → Datenschutz &amp; Sicherheit</em> und wähle bei SyllaBeat „Dennoch öffnen“. (Der frühere Weg per Rechtsklick → „Öffnen“ gilt seit macOS 15 nicht mehr.)</aside>
+
+<h2>1 · Erster Start</h2>
+<p>SyllaBeat fragt einmal, wie es arbeiten soll:</p>
+<ul>
+<li><strong>Lokal (empfohlen):</strong> Alles bleibt auf dem Mac. Geladen werden die Gesangserkennung (Whisper, 632 MB), die Bildsuche (SigLIP 2, 355 MB) und – nur wenn Apple Intelligence nicht verfügbar ist – ein Bildmodell (Qwen3-VL, je nach Arbeitsspeicher 3–5 GB). Die Downloads laufen im Hintergrund, die App ist sofort bedienbar.</li>
+<li><strong>Mit Cloud-KI:</strong> Regie und Beschreibungen über Anthropic, OpenAI oder einen eigenen Server (Einstellungen → Anbieter).</li>
+<li><strong>Erst einmal ohne KI:</strong> Geschnitten wird nach Beats, Energie und Abwechslung.</li>
+</ul>
+
+<h2>2 · Projekt anlegen</h2>
+<p><kbd>⌘N</kbd> öffnet ein neues Projekt. Ziehe den <strong>Song</strong> in die Vorschau und die <strong>Clips oder einen Ordner</strong> in die Bibliothek links (oder <kbd>⇧⌘I</kbd>). Ein Ordner mit Clips und Song auf einmal geht auch. Den Songtext kannst du im Inspektor rechts einfügen; Absätze und Überschriften wie <code>[Refrain]</code> werden zu Abschnitten.</p>
+<p>Dann arbeitet der <strong>Autopilot</strong>: Clips einlesen und in Szenen zerlegen, Song analysieren (Beats, Takte, Abschnitte, Energie), Bildsuche vorbereiten und den <strong>ersten Schnitt</strong> erstellen – ohne weiteren Klick. Gesang und Bildbeschreibungen kommen danach im Hintergrund dazu; die Aufgabenzentrale in der Werkzeugleiste zeigt Fortschritt und Restzeit, jede Aufgabe lässt sich abbrechen.</p>
+<p>Projekte sichert SyllaBeat automatisch (Versionen über <em>Ablage → Zurücksetzen auf</em>). Projekte aus 0.2 öffnen sich direkt; daneben bleibt eine Kopie im alten Format.</p>
+
+<h2>3 · Bibliothek und Clips</h2>
+<p>Die Bibliothek zeigt Clips als Raster oder Liste; mit der Maus über einem Bild scrubbst du durch den Clip. Die Suche versteht Beschreibungen wie „Meer bei Nacht“ (Bildsuche, auch auf Deutsch). Im Inspektor: Beschreibung und Schlagwörter (editierbar), Szenen, Bewertung, „Nie verwenden“ und die technischen Daten. Formate, die macOS nicht direkt liest (z. B. MKV) oder variable Bildraten, bekommen auf Wunsch eine Arbeitskopie (ffmpeg wird bei Bedarf geladen).</p>
+<p><strong>Beschreiben</strong> erstellt eine Bildbeschreibung mit Stimmung, Schlagwörtern und Dateinamen-Vorschlag. Mit einem lokalen Anbieter läuft das nach dem ersten Schnitt automatisch für alle Clips; Selbstgeschriebenes wird nie überschrieben.</p>
+
+<h2>4 · Song und Timeline</h2>
+<p>Die Timeline hat vier Spuren: <strong>Abschnitte</strong>, <strong>Text</strong> (Zeilen, beim Zoomen Wörter und Silben; unsichere Wörter orange), <strong>Song</strong> (Wellenform mit Beats und Takten) und <strong>Bild</strong> (die Einstellungen mit Vorschaubildern).</p>
+<ul>
+<li>Raster korrigieren: Leiste über der Timeline (Tempo ×2, ÷2, ×¾, ×4⁄3, Taktart, ±10 ms) und Rechtsklick auf einen Beat („Taktanfang hier“, „Beat löschen/einfügen“). Der Schnitt wandert mit; Einstellungen, für die das Material nicht mehr reicht, werden im selben Schritt neu bestimmt.</li>
+<li>Abschnitte: Grenzen ziehen, Rechtsklick für Typ, „Wiederholung von …“, Teilen und Verbinden.</li>
+<li>Text: Doppelklick auf ein Wort korrigiert es; „Songtext ausrichten“ im Inspektor ordnet den eigenen Text neu zu.</li>
+</ul>
+
+<h2>5 · Schnitt</h2>
+<p><strong>Stil</strong> (Werkzeugleiste): Ruhig, Ausgewogen, Energetisch oder Hektisch, dazu Refrains <em>identisch</em>, <em>gleiche Clips, andere Ausschnitte</em> oder <em>frei</em>. Die <strong>Regler</strong> stellen Beats je Einstellung, Variation, Mindestdauer und den Einfluss der Songenergie ein. <strong>Neu würfeln</strong> (<kbd>⌘R</kbd>) schneidet neu, <strong>Varianten</strong> erzeugt drei Schnitte zum Vergleichen.</p>
+<p>Klick auf eine Einstellung in der Bildspur zeigt im Inspektor <strong>„Warum dieser Clip?“</strong> mit den Anteilen der Bewertung und acht <strong>Alternativen</strong>; ein Klick auf eine Alternative übernimmt sie. <strong>Fixieren</strong> (<kbd>L</kbd>) schützt Einstellungen vor jedem Neuschnitt; <strong>Neu schneiden</strong> (<kbd>⇧⌘R</kbd>) ändert nur die Auswahl. Clips lassen sich aus der Bibliothek direkt auf eine Einstellung ziehen.</p>
+
+<h2>6 · Vorschau</h2>
+<p>Die Vorschau spielt den Schnitt synchron zum Song mit der aktuellen Textzeile. „Füllen“ beschneidet Clips mit anderem Seitenverhältnis, „Einpassen“ zeigt sie ganz mit Balken.</p>
+
+<h2>7 · KI-Regie</h2>
+<p>Im Inspektor unter <strong>Regie</strong> beschreibst du die Idee („Liebesgeschichte am Meer, Refrain bei Nacht, Ende im Sonnenuntergang“). <strong>Storyboard erstellen</strong> legt für jeden Abschnitt Stimmung, Bildidee, Suchbegriffe und Schnitttempo fest und schneidet neu; die Suchbegriffe finden die passenden Bilder über die Bildsuche. Fixierte Einstellungen bleiben. Ohne Verbindung geht es auch von Hand: Prompt kopieren, in ein beliebiges Chatfenster geben, Antwort einfügen – SyllaBeat prüft sie.</p>
+<p><strong>Datenschutz:</strong> Vor dem ersten Senden an einen Cloud-Anbieter zeigt SyllaBeat, was übertragen wird (für die Regie Songtext, Abschnitte und Regieanweisung; für Beschreibungen kleine Vorschaubilder). Videos verlassen den Mac nie. Zustimmungen lassen sich unter Einstellungen → Datenschutz widerrufen, Schlüssel liegen im Schlüsselbund.</p>
+
+<h2>8 · Export</h2>
+<p><strong>Exportieren …</strong> (<kbd>⌘E</kbd>) fragt zuerst nach dem Zielprogramm:</p>
+<table>
+<tr><th>Ziel</th><th>Dateien</th><th>Import</th></tr>
+<tr><td>Final Cut Pro</td><td><code>.fcpxml</code> (1.8) mit Markern und Schlagwörtern</td><td>„In Final Cut Pro öffnen“ oder <em>Ablage → Importieren → XML</em></td></tr>
+<tr><td>DaVinci Resolve</td><td><code>.fcpxml</code> mit Song, dazu <code>.edl</code> (nur Bild) und eine Marker-EDL</td><td><em>Datei → Importieren → Zeitleiste</em>; Marker über „Zeitleistenmarker aus EDL“</td></tr>
+<tr><td>Premiere Pro</td><td><code>.xml</code> (FCP 7)</td><td><em>Datei → Importieren</em></td></tr>
+<tr><td>Nur Archiv</td><td>Schnittliste, Clip-Katalog (JSON, CSV), OpenTimelineIO</td><td>–</td></tr>
+</table>
+<p>„Erweitert“ zeigt alle Formate, auch Untertitel (SRT) und Songtext mit Zeiten (LRC). Die Timeline-Dateien verweisen auf die Medien; nach dem Verschieben von Dateien neu exportieren. Projekte finden verschobene Clips beim Öffnen selbst wieder; sonst hilft <em>Ablage → Medien neu verknüpfen …</em>.</p>
+
+<h2>9 · Tastenkürzel</h2>
+<table>
+<tr><td><kbd>Leertaste</kbd></td><td>Abspielen / Anhalten</td><td><kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd></td><td>rückwärts / anhalten / vorwärts (bei Auswahl fixiert <kbd>L</kbd>)</td></tr>
+<tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>vorige / nächste Einstellung</td><td><kbd>⌥←</kbd> <kbd>⌥→</kbd></td><td>ein Frame</td></tr>
+<tr><td><kbd>B</kbd></td><td>Schnitt an der Abspielposition (nächster Beat)</td><td><kbd>⌫</kbd></td><td>Einstellung mit der vorigen verschmelzen</td></tr>
+<tr><td>Kante ziehen</td><td>Schnitt verschieben (rastet an Beats, <kbd>⌥</kbd> an Wörtern, <kbd>⌘</kbd> an Frames)</td><td><kbd>⌘R</kbd> / <kbd>⇧⌘R</kbd></td><td>neu würfeln / Auswahl neu schneiden</td></tr>
+<tr><td><kbd>⌘+</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd></td><td>Zoom, alles zeigen</td><td><kbd>⌘E</kbd></td><td>Exportieren</td></tr>
+<tr><td><kbd>⌘Z</kbd> <kbd>⇧⌘Z</kbd></td><td>Rückgängig / Wiederholen für alles</td><td><kbd>⌘?</kbd></td><td>diese Hilfe</td></tr>
+</table>
+
+<h2>10 · Modelle und Speicherorte</h2>
+<p>Einstellungen → Modelle zeigt alle Modelle mit Größe, Speicherbedarf und der Empfehlung für diesen Mac; Laden lässt sich fortsetzen und wird per Prüfsumme kontrolliert. Modelle liegen unter <code>~/Library/Application Support/SyllaBeat/Models</code> (verlegbar), Vorschaubilder und Embeddings im Zwischenspeicher (Einstellungen → Allgemein, löschbar). Ollama- und Whisper-Modelle aus 0.2 braucht 0.3 nicht mehr; die Einstellungen zeigen sie mit Größe und bieten das Löschen an.</p>
+
+<h2>11 · Wenn etwas nicht klappt</h2>
+<ul>
+<li><strong>Beats liegen daneben:</strong> Tempo ×2 oder ÷2, bei Triolengefühl ×¾ oder ×4⁄3; mit Rechtsklick den Taktanfang setzen.</li>
+<li><strong>Kein Ton in Resolve:</strong> die FCPXML importieren (die FCP-7-XML bringt in Resolve nur das Bild).</li>
+<li><strong>Datei fehlt:</strong> <em>Ablage → Medien neu verknüpfen …</em> und den Ordner wählen.</li>
+<li><strong>Diagnose:</strong> Einstellungen → Allgemein → „Inferenzdienst prüfen“; im Terminal <code>/Applications/SyllaBeat.app/Contents/MacOS/SyllaBeat --self-test</code>.</li>
+</ul>
+</html>

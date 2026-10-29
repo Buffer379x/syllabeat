@@ -1,61 +1,52 @@
 # SyllaBeat
 
-Eigenständige macOS-Desktop-App für Apple Silicon, die aus einem Song und einem Ordner voller Videoclips einen beatgenauen Musikvideo-Schnitt plant. GUI auf Deutsch, lokale Beat-/Gesangsanalyse, Ollama Vision, automatische oder manuelle KI-Regie und Timeline-Export für Final Cut Pro, Premiere, DaVinci Resolve & Co.
+Native macOS-App für Apple Silicon, die aus einem Song und einem Ordner voller Videoclips einen Musikvideo-Rohschnitt baut: Schnitte frame-genau auf Beats, Takten und gesungenen Silben, Bilder passend zu Text und Stimmung, Export nach Final Cut Pro, DaVinci Resolve und Premiere. Oberfläche auf Deutsch, alle Analysen lokal.
 
-**Version 0.2.0** · macOS 15+ · Apple Silicon
+**Version 0.3.0** · macOS 15+ · Apple Silicon · Swift/SwiftUI
 
 ## Installation
 
-1. Unter [Releases](https://github.com/Buffer379x/syllabeat/releases) die Datei `SyllaBeat-<version>.dmg` laden.
+1. Unter [Releases](https://github.com/Buffer379x/syllabeat/releases) die Datei `SyllaBeat-<version>.dmg` laden (rund 10 MB).
 2. DMG öffnen und **SyllaBeat** in den Programme-Ordner ziehen.
-3. Beim ersten Start Rechtsklick → **Öffnen** (die App ist ad-hoc signiert, nicht notarisiert).
+3. Die App ist ad-hoc signiert, nicht notarisiert. Beim ersten Start meldet macOS, dass sie nicht geprüft werden kann: dann unter *Systemeinstellungen → Datenschutz & Sicherheit* „Dennoch öffnen“ wählen.
 
-Python, Homebrew oder Terminalbefehle sind nicht nötig. KI-Modelle (Whisper, Ollama) lädt die App bei Bedarf selbst. Die ausführliche Anleitung liegt in `BEDIENUNG.html` und unter **Hilfe → Bedienungsanleitung**.
+Modelle (Gesangserkennung, Bildsuche, Bildbeschreibung) lädt die App bei Bedarf selbst; mit Apple Intelligence ist für Regie und Beschreibungen kein Download nötig. Die Anleitung liegt in [`BEDIENUNG.html`](BEDIENUNG.html) und in der App unter **Hilfe → SyllaBeat-Hilfe**.
 
 ## Funktionen
 
-- **Medien:** Videoordner und Song wählen oder per Drag & Drop ins Fenster ziehen; Format-Vorlagen (16:9, 4K, 9:16, 1:1 …) und rationale Bildraten.
-- **Clip-Katalog:** ffprobe/OpenCV-Metadaten, Vorschaubilder, VFR-Erkennung, CFR-Arbeitskopien (ProRes), Filter/Suche.
-- **Ollama Vision** (`qwen2.5vl:7b`): Beschreibung, Motiv, Handlung, Stimmung, Tags; fehlertolerant und fortsetzbar; Umbenennung mit Vorschau, Kollisionsschutz und Undo.
-- **Songanalyse:** librosa-Beats inkl. Schnittraster (jeder 2./4. Beat, Verdoppeln, ms-Versatz); MLX Whisper mit Wortzeitstempeln; Zuordnung eigener Lyrics; Refrain-Erkennung.
-- **KI-Regie:** Ollama lokal, OpenAI Responses API (Structured Outputs, Key im Schlüsselbund) oder ChatGPT Web per Prompt-Zwischenablage; automatische Korrekturschleifen; lokaler Basisplan ohne Modell.
-- **Schnittkern:** Beat-IDs statt freier Zeiten, Quellgrenzen, Refrain-Vorlagen werden per Code exakt wiederholt, framegenaue Rundung ohne Drift.
-- **Export:** FCPXML 1.8 (Final Cut Pro), xmeml v4 und CMX-3600-EDL (DaVinci Resolve), OpenTimelineIO – XML-Formate mit vollständiger Musikspur.
-- **Schnittstil:** variable Cliplängen, schnellere Refrains, Ausschnitte aus verschiedenen Szenen eines Clips.
-- Atomare Projektsicherung (`.syllabeat`), Autosave, „Zuletzt geöffnet“, Fortschrittsanzeige und Abbrechen für alle Hintergrundaufgaben.
+- **Ein Projektfenster:** Bibliothek, Vorschau, Inspektor und Timeline mit Abschnitten, Text bis zur Silbe, Wellenform mit Beats und Takten und Bildspur. Undo/Redo für alles, Autosave, Versionen.
+- **Autopilot:** Song und Clips hineinziehen, der erste Schnitt entsteht ohne weiteren Klick (60 Clips und ein 4-Minuten-Song in etwa 25 s).
+- **Medien:** AVFoundation mit exakten Bildraten, Rotation, Kamera-Timecode und VFR-Prüfung; Szenenerkennung, Apple-Vision-Merkmale, Bildsuche per SigLIP 2 (auch auf Deutsch); Arbeitskopien über eine nachladbare ffmpeg-Komponente.
+- **Song:** Beat- und Taktanalyse, Abschnitte aus Audio-Struktur oder Songtext, Gesangserkennung mit WhisperKit und Wortzeit-Korrektur, Ausrichtung des eigenen Songtexts; Raster-Werkzeuge mit Undo.
+- **Schnitt-Engine:** Stil-Presets und Regler, Refrain-Modi, Fixieren, Neu würfeln, Teilneuberechnung, drei Varianten, „Warum dieser Clip?“ mit Alternativen. Invarianten per Property-Test über 10.000 Projekte.
+- **Vorschau:** synchroner Player aus derselben Frame-Tabelle wie die Exporte, Textzeile als Overlay, Füllen/Einpassen.
+- **KI (optional):** Apple Intelligence, lokale MLX-Modelle (Qwen3-VL), Ollama, OpenAI-kompatible Server, Anthropic oder von Hand. Storyboard aus Regieanweisung und Songtext; Bildbeschreibungen als fortsetzbare Hintergrundaufgabe. Vor jedem ersten Senden an einen Cloud-Anbieter zeigt die App, was übertragen wird; Videos verlassen den Mac nie.
+- **Export:** FCPXML 1.8 mit Markern und Schlagwörtern, FCP-7-XML, CMX-3600-EDL (mit korrekten Quellzeiten bei abweichender Bildrate und Kamera-Timecode), OpenTimelineIO, Schnittliste und Clip-Katalog, SRT/LRC.
 
-Beat- und Gesangserkennung liefern Schätzwerte; alle Tabellen sind korrigierbar.
+## Entwickeln
 
-## Release bauen (GitHub Actions)
-
-Der Workflow [`.github/workflows/release.yml`](.github/workflows/release.yml) baut auf einem Apple-Silicon-Runner die App, führt Tests und den Selbsttest der gebauten App aus, erstellt `SyllaBeat-<version>.dmg` (+ SHA-256) und veröffentlicht sie als GitHub Release.
-
-- **Manuell:** *Actions → Release (macOS DMG) → Run workflow* (optional als Pre-release oder Entwurf).
-- **Per Tag:** Version in `syllabeat/__init__.py` setzen, dann `git tag v0.2.0 && git push origin v0.2.0`.
-
-Bei jedem Push laufen zusätzlich schnelle Tests unter Linux ([`tests.yml`](.github/workflows/tests.yml)).
-
-## Lokal entwickeln
-
-Benötigt macOS auf Apple Silicon mit Python 3.12:
+Voraussetzungen: macOS auf Apple Silicon, Xcode 27 mit Metal-Toolchain (`xcodebuild -downloadComponent MetalToolchain`).
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.lock
-.venv/bin/python scripts/fetch_binaries.py      # ffmpeg, ffprobe, Ollama (SHA-256-geprüft)
-.venv/bin/python -m unittest discover -s tests -v
-.venv/bin/python main.py                        # App aus dem Quellcode starten
-.venv/bin/python scripts/build.py               # dist/SyllaBeat.app + dist/SyllaBeat-<version>.dmg
+open SyllaBeat.xcodeproj                 # App, Inferenzdienst und UI-Tests
+scripts/check.sh                         # Formatierung, Paket-Tests, Selbsttest, App-Build und UI-Tests
+scripts/build-release.sh                 # Release-Archiv, Ad-hoc-Signatur, Selbsttest, dist/SyllaBeat-<version>.dmg
+swift run --package-path Packages/SyllaBeatKit sbtool   # Kommandozeile: Selbsttest, Import, Analyse, Schnitt, Export, Messungen
 ```
 
-`requirements.lock` enthält die verwendeten Paketversionen; `assets/binaries.json` dokumentiert Binärquellen und Prüfsummen (`--latest` aktualisiert sie). Selbsttest der gebauten App:
+Aufbau:
 
-```sh
-VC_DATA_DIR="$PWD/.build/diagnostics" VC_TEST_METAL=1 dist/SyllaBeat.app/Contents/MacOS/SyllaBeat --self-test .build/diagnostics.json
-```
+| Ort | Inhalt |
+|---|---|
+| `App/` | SwiftUI-App: Dokumentfenster, Controller für Medien, Song, Schnitt und KI, Einstellungen, Export-Dialog |
+| `InferenceService/` | XPC-Dienst für Modelle (SigLIP 2, WhisperKit, MLX); beendet sich nach Leerlauf |
+| `Packages/SyllaBeatKit/` | `SyllaBeatCore` (Modell, Schnitt-Engine, Exporte), `Media`, `Audio`, `UI` (Timeline), `AI` (Anbieter, Regie), `Models`, `MLX`, `sbtool` |
+| `UITests/` | UI-Tests der App |
+| `tests/Fixtures/` | Golden-Exporte aus 0.2.0, Testclips |
+| `Config/` | `Version.xcconfig` (einzige Versionsquelle), Build-Einstellungen |
 
-Die echte Whisper-Prüfung ist über `VC_TEST_WHISPER=1` zuschaltbar (lädt das Tiny-Modell).
+Die Python-Version 0.2.0 bleibt über den Tag `v0.2.0` erreichbar.
 
-Struktur (`syllabeat/`): `gui.py` Oberfläche, `worker.py` isolierte Hintergrundprozesse, `analysis.py` Medien/Audio, `planning.py` Schnittregeln, `director.py` KI-Orchestrierung, `exporters.py` Timeline-Formate, `services.py` Ollama/OpenAI, `storage.py` Projekte/Schlüsselbund/Umbenennung.
+## Release
 
-Daten der Vorversion („Video Creator“) unter `~/Library/Application Support/` und im Schlüsselbund werden automatisch übernommen.
+Ein Tag `v<Version>` startet den Workflow [„Release (macOS DMG)“](.github/workflows/release.yml): Version gegen `Config/Version.xcconfig` prüfen, `scripts/check.sh`, Release-Archiv, Ad-hoc-Signatur, Selbsttest der gebauten App, `SyllaBeat-<Version>.dmg` mit SHA-256 und GitHub Release mit den Notizen aus `CHANGELOG.md`.

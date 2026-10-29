@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0 – 2026-10-29
+
+Neu geschrieben als native macOS-App in Swift und SwiftUI. Das DMG ist rund 10 MB groß statt 1,2 GB, Projekte aus 0.2 öffnen sich direkt.
+
+### Neu
+- **Ein Projektfenster** mit Bibliothek, Vorschau, Inspektor und Timeline (Abschnitte, Text bis zur Silbe, Wellenform mit Beats und Takten, Bildspur). Undo/Redo für alles, Autosave und Versionen.
+- **Autopilot:** Song und Clips hineinziehen, der erste Schnitt entsteht ohne weiteren Klick. Willkommen beim ersten Start mit dem passenden Modellpaket für diesen Mac.
+- **Vorschau-Player:** der Schnitt synchron zum Song, aus derselben Frame-Tabelle wie die Exporte, mit Textzeile; Füllen oder Einpassen.
+- **Schnitt-Engine:** Stil-Presets und Regler, Refrain-Modi (identisch, gleiche Clips, frei), Fixieren, Neu würfeln, Auswahl neu schneiden, drei Varianten, „Warum dieser Clip?“ mit acht Alternativen. Abschnittsgrenzen sind Pflichtschnitte.
+- **Bildspur bedienen:** Kanten ziehen (rastet an Beats, Wörtern oder Frames), `B` schneidet, `⌫` verschmilzt, Clips aus der Bibliothek auf eine Einstellung ziehen, `J`/`K`/`L`, `←`/`→`, `⌥←`/`⌥→`.
+- **Song:** eigene Beat- und Taktanalyse, Abschnitte aus Audio und Songtext, Gesangserkennung mit WhisperKit und Korrektur der Wortzeiten auf Gesangseinsätze, Ausrichtung des eigenen Songtexts mit Silben. Rasterkorrekturen mit Undo; der Schnitt wandert mit und wird bei Bedarf repariert.
+- **Bildsuche** mit SigLIP 2 (auch deutsche Anfragen) und **Szenen** je Clip mit Apple-Vision-Merkmalen.
+- **KI-Regie als Storyboard** aus Regieanweisung und Songtext: Stimmung, Bildidee, Suchbegriffe und Schnitttempo je Abschnitt. Anbieter: Apple Intelligence, lokale MLX-Modelle (Qwen3-VL), Ollama, OpenAI-kompatible Server, Anthropic oder von Hand.
+- **Bildbeschreibungen** als fortsetzbare Hintergrundaufgabe; danach „Schnitt verbessern?“.
+- **Datenschutz:** Zustimmung vor dem ersten Senden an einen Cloud-Anbieter mit Angabe, was übertragen wird; Widerruf in den Einstellungen; Schlüssel im Schlüsselbund. Videos verlassen den Mac nie.
+- **Modellverwaltung** mit Empfehlung nach Arbeitsspeicher, Warnung vor zu großen Modellen, fortsetzbaren und geprüften Downloads, wählbarem Speicherort und Hinweis auf nicht mehr benötigte Modelle aus 0.2.
+- **Export-Dialog nach Zielprogramm** (Final Cut Pro, DaVinci Resolve, Premiere, Archiv) mit Markern für Abschnitte, Textzeilen und Takte, Schlagwörtern und Notizen; „In Final Cut Pro öffnen“; Untertitel (SRT) und Songtext mit Zeiten (LRC).
+- Hilfe in der App (`⌘?`), Selbsttest `--self-test`, Kommandozeile `sbtool`.
+
+### Behoben
+- **EDL:** Bei Clips mit anderer Bildrate als die Timeline (z. B. 50p in 25p) stimmte die Quelllänge nicht (F1). Die Quell-Timecodes nutzen jetzt den Kamera-Timecode der Datei statt immer 00:00:00:00 (F2).
+- **DaVinci Resolve:** Aus der FCP-7-XML übernimmt Resolve den Song nicht; das Zielprogramm „DaVinci Resolve“ exportiert deshalb FCPXML mit Song, dazu EDL und Marker-EDL.
+- Hinweis zum ersten Start korrigiert: Seit macOS 15 öffnet man nicht notarisierte Apps über *Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen*.
+
+### Entfernt
+- Python-Laufzeit, Ollama und die mitgelieferten Hilfsprogramme. Die Version 0.2.0 bleibt über den Tag `v0.2.0` erreichbar.
+
 ## 0.2.0 – 2026-10-19
 
 ### Behoben

@@ -38,6 +38,8 @@ public struct TimelineContent: Equatable {
     public var lines: [LyricLine]
     public var shots: [TimelineShot]
     public var waveform: Waveform?
+    /// Timeline-Bildrate (für ⌥←/→ und das Einrasten auf Frames mit ⌘).
+    public var fps: Double = 25
 
     public init(
         duration: Double, beats: [Beat], meter: Int, sections: [SongSection], words: [Word], lines: [LyricLine] = [],
@@ -62,15 +64,19 @@ public struct TimelineActions {
     public var zoom: (Double, Double) -> Void
     /// Auswahl in der Bildspur hat sich geändert.
     public var select: (Set<String>) -> Void
+    /// J/K/L: −1 rückwärts, 0 anhalten, +1 vorwärts (mehrfach drücken beschleunigt).
+    public var transport: (Int) -> Void
 
     public init(
         seek: @escaping (Double) -> Void = { _ in }, run: @escaping (any EditCommand) -> Void = { _ in },
-        zoom: @escaping (Double, Double) -> Void = { _, _ in }, select: @escaping (Set<String>) -> Void = { _ in }
+        zoom: @escaping (Double, Double) -> Void = { _, _ in }, select: @escaping (Set<String>) -> Void = { _ in },
+        transport: @escaping (Int) -> Void = { _ in }
     ) {
         self.seek = seek
         self.run = run
         self.zoom = zoom
         self.select = select
+        self.transport = transport
     }
 }
 
@@ -101,11 +107,23 @@ public final class TimelineCanvas: NSView {
     public static var totalHeight: CGFloat { Track.allCases.reduce(0) { $0 + $1.height } }
 
     public var content = TimelineContent(duration: 1, beats: [], meter: 4, sections: [], words: [], shots: []) {
-        didSet { if content != oldValue { needsDisplay = true } }
+        didSet {
+            if content != oldValue {
+                needsDisplay = true
+                accessibilityElements = nil
+            }
+        }
     }
     public var pixelsPerSecond: Double = 20 {
-        didSet { if pixelsPerSecond != oldValue { needsDisplay = true } }
+        didSet {
+            if pixelsPerSecond != oldValue {
+                needsDisplay = true
+                accessibilityElements = nil
+            }
+        }
     }
+    /// VoiceOver-Elemente; die Barrierefreiheit hält sie nicht fest, deshalb hält sie die Zeichenfläche.
+    private var accessibilityElements: [TimelineAccessibilityElement]?
     public var playhead: Double = 0 {
         didSet {
             guard playhead != oldValue else { return }
@@ -117,7 +135,12 @@ public final class TimelineCanvas: NSView {
     public var actions = TimelineActions()
     /// Ausgewählte Einstellungen (Bildspur).
     public var selectedShotIDs: Set<String> = [] {
-        didSet { if selectedShotIDs != oldValue { needsDisplay = true } }
+        didSet {
+            if selectedShotIDs != oldValue {
+                needsDisplay = true
+                accessibilityElements = nil
+            }
+        }
     }
     /// Vorschaubilder je `TimelineShot.thumbnailKey`.
     public var thumbnails: [String: NSImage] = [:] {
@@ -127,6 +150,21 @@ public final class TimelineCanvas: NSView {
     private var selectionAnchor: Int?
 
     private var draggedBoundary: (sectionID: String, time: Double)?
+    /// Gezogene Shotkante: Index des Shots davor und Zielpunkt.
+    private var draggedCut: (index: Int, point: CutPoint)?
+
+    /// Kennung für Clips, die aus der Bibliothek auf die Bildspur gezogen werden.
+    public static let clipDragPrefix = "syllabeat-clip:"
+
+    override public init(frame: NSRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.string])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.string])
+    }
     private var editor: NSTextField?
     private var editedWordID: String?
 
@@ -348,6 +386,10 @@ public final class TimelineCanvas: NSView {
                 outline.stroke()
             }
         }
+        if let dragged = draggedCut {
+            NSColor.controlAccentColor.setFill()
+            NSRect(x: x(dragged.point.time) - 1, y: area.minY, width: 2, height: area.height).fill()
+        }
     }
 
     private var tempo: Double {
@@ -392,6 +434,11 @@ public final class TimelineCanvas: NSView {
     }
 
     override public func resetCursorRects() {
+        let image = rect(of: .image)
+        for shot in content.shots.dropLast() {
+            addCursorRect(
+                NSRect(x: x(shot.end) - 3, y: image.minY, width: 6, height: image.height), cursor: .resizeLeftRight)
+        }
         let area = rect(of: .sections)
         for section in content.sections.dropFirst() {
             addCursorRect(
@@ -408,6 +455,10 @@ public final class TimelineCanvas: NSView {
         }
         if let section = boundary(near: point) {
             draggedBoundary = (section.id, section.start)
+            return
+        }
+        if let index = cutIndex(near: point) {
+            draggedCut = (index, CutPoint(time: content.shots[index].end, anchor: .free))
             return
         }
         if track(at: point) == .image {
@@ -440,13 +491,85 @@ public final class TimelineCanvas: NSView {
     }
 
     /// `L` fixiert die Auswahl bzw. löst sie (wie im Inspektor).
+    /// Tasten der Timeline (Plan 8.3): L fixieren (bei Auswahl), B Schnitt einfügen, ⌫ mit Vorgänger verschmelzen,
+    /// ←/→ vorige/nächste Einstellung, ⌥←/→ ein Frame, J/K/L Wiedergabe.
     override public func keyDown(with event: NSEvent) {
-        let plain = event.modifierFlags.intersection([.command, .option, .control]).isEmpty
-        if plain, event.charactersIgnoringModifiers?.lowercased() == "l", !selectedShotIDs.isEmpty {
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        switch (event.keyCode, key, modifiers) {
+        case (_, "l", []) where !selectedShotIDs.isEmpty:
             toggleLock(selectedShotIDs)
-            return
+        case (_, "l", []):
+            actions.transport(1)
+        case (_, "k", []):
+            actions.transport(0)
+        case (_, "j", []):
+            actions.transport(-1)
+        case (_, "b", []):
+            let point = snap(playhead, modifiers: [])
+            actions.run(SplitShot(at: point))
+        case (51, _, []), (117, _, []):
+            if selectedShotIDs.count == 1, let id = selectedShotIDs.first {
+                actions.run(MergeShotWithPrevious(shotID: id))
+            }
+        case (123, _, .option):
+            actions.seek(max(0, playhead - 1 / content.fps))
+        case (124, _, .option):
+            actions.seek(min(content.duration, playhead + 1 / content.fps))
+        case (123, _, []):
+            actions.seek(content.shots.last { $0.start < playhead - 0.05 }?.start ?? 0)
+        case (124, _, []):
+            if let next = content.shots.first(where: { $0.start > playhead + 0.01 }) { actions.seek(next.start) }
+        default:
+            super.keyDown(with: event)
         }
-        super.keyDown(with: event)
+    }
+
+    /// Kante zwischen Shot `index` und `index + 1` unter dem Mauszeiger (Bildspur, ±4 Pixel).
+    private func cutIndex(near point: NSPoint) -> Int? {
+        guard track(at: point) == .image else { return nil }
+        return content.shots.indices.dropLast().first { abs(x(content.shots[$0].end) - point.x) <= 4 }
+    }
+
+    /// Einrasten: Beats (Standard), mit ⌥ Wortanfänge, mit ⌘ Frames.
+    func snap(_ time: Double, modifiers: NSEvent.ModifierFlags) -> CutPoint {
+        if modifiers.contains(.command) {
+            return CutPoint(time: (time * content.fps).rounded() / content.fps, anchor: .free)
+        }
+        if modifiers.contains(.option),
+            let word = content.words.min(by: { abs($0.start - time) < abs($1.start - time) })
+        {
+            return CutPoint(time: word.start, anchor: .word(word.id))
+        }
+        if let beat = nearestBeat(to: time) {
+            return CutPoint(time: content.beats[beat].time, anchor: .beat(beat))
+        }
+        return CutPoint(time: time, anchor: .free)
+    }
+
+    // MARK: Clip aus der Bibliothek auf eine Einstellung ziehen
+
+    private func droppedClipID(_ info: NSDraggingInfo) -> String? {
+        guard let text = info.draggingPasteboard.string(forType: .string), text.hasPrefix(Self.clipDragPrefix) else {
+            return nil
+        }
+        return String(text.dropFirst(Self.clipDragPrefix.count))
+    }
+
+    override public func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        draggingUpdated(sender)
+    }
+
+    override public func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        let point = convert(sender.draggingLocation, from: nil)
+        return droppedClipID(sender) != nil && track(at: point) == .image && shotIndex(at: point) != nil ? .copy : []
+    }
+
+    override public func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        let point = convert(sender.draggingLocation, from: nil)
+        guard let clipID = droppedClipID(sender), let index = shotIndex(at: point) else { return false }
+        actions.run(ReplaceShot(shotID: content.shots[index].id, clipID: clipID, sceneID: nil, sourceIn: .zero))
+        return true
     }
 
     private func toggleLock(_ ids: Set<String>) {
@@ -457,6 +580,15 @@ public final class TimelineCanvas: NSView {
 
     override public func mouseDragged(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        if let dragged = draggedCut {
+            let shots = content.shots
+            let lower = shots[dragged.index].start + 1 / content.fps
+            let upper = shots[dragged.index + 1].end - 1 / content.fps
+            let target = snap(min(upper, max(lower, time(point.x))), modifiers: event.modifierFlags)
+            draggedCut = (dragged.index, target)
+            needsDisplay = true
+            return
+        }
         if let dragged = draggedBoundary {
             // Grenzen rasten an Beats ein; mit ⌥ frei.
             var target = time(point.x)
@@ -472,6 +604,14 @@ public final class TimelineCanvas: NSView {
     }
 
     override public func mouseUp(with event: NSEvent) {
+        if let dragged = draggedCut {
+            draggedCut = nil
+            needsDisplay = true
+            if abs(dragged.point.time - content.shots[dragged.index].end) > 0.0005 {
+                actions.run(MoveCut(after: dragged.index, to: dragged.point))
+            }
+            return
+        }
         guard let dragged = draggedBoundary else { return }
         draggedBoundary = nil
         needsDisplay = true
@@ -608,6 +748,44 @@ public final class TimelineCanvas: NSView {
 
     override public func isAccessibilityElement() -> Bool { true }
     override public func accessibilityRole() -> NSAccessibility.Role? { .group }
+
+    /// Abschnitte und Einstellungen als eigene Elemente für VoiceOver; „Drücken“ wählt aus und springt hin.
+    override public func accessibilityChildren() -> [Any]? {
+        if let accessibilityElements { return accessibilityElements }
+        var children: [TimelineAccessibilityElement] = []
+        let sections = rect(of: .sections)
+        for section in content.sections {
+            let element = TimelineAccessibilityElement(
+                parent: self,
+                frame: NSRect(
+                    x: x(section.start), y: sections.minY, width: x(section.end) - x(section.start),
+                    height: sections.height),
+                label: "\(section.label), \(Format.time(section.start)) bis \(Format.time(section.end))",
+                role: .group
+            ) { [weak self] in self?.actions.seek(section.start) }
+            children.append(element)
+        }
+        let image = rect(of: .image)
+        for (index, shot) in content.shots.enumerated() {
+            var label =
+                "Einstellung \(index + 1): \(shot.name), \(Format.time(shot.start)) bis \(Format.time(shot.end))"
+            if shot.locked { label += ", fixiert" }
+            if shot.copied { label += ", Wiederholung" }
+            if selectedShotIDs.contains(shot.id) { label += ", ausgewählt" }
+            let element = TimelineAccessibilityElement(
+                parent: self,
+                frame: NSRect(
+                    x: x(shot.start), y: image.minY, width: x(shot.end) - x(shot.start), height: image.height),
+                label: label, role: .button
+            ) { [weak self] in
+                self?.actions.select([shot.id])
+                self?.actions.seek(shot.start)
+            }
+            children.append(element)
+        }
+        accessibilityElements = children
+        return children
+    }
     override public func accessibilityLabel() -> String? {
         "Timeline: \(content.sections.count) Abschnitte, \(content.words.count) Wörter, \(content.beats.count) Beats, \(content.shots.count) Einstellungen"
     }
@@ -652,5 +830,25 @@ extension SongSection.Kind {
         case .instrumental: .systemTeal
         case .other: .secondaryLabelColor
         }
+    }
+}
+
+/// Ein Abschnitt oder eine Einstellung der Timeline für VoiceOver.
+final class TimelineAccessibilityElement: NSAccessibilityElement {
+    private let press: () -> Void
+
+    init(parent: NSView, frame: NSRect, label: String, role: NSAccessibility.Role, press: @escaping () -> Void) {
+        self.press = press
+        super.init()
+        setAccessibilityElement(true)
+        setAccessibilityParent(parent)
+        setAccessibilityFrameInParentSpace(frame)
+        setAccessibilityLabel(label)
+        setAccessibilityRole(role)
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        press()
+        return true
     }
 }

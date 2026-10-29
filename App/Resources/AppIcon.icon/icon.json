@@ -1,0 +1,77 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.06275,0.60000,0.49020,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "fill": {
+            "solid": "extended-srgb:1.00000,0.78431,0.23922,1.00000"
+          },
+          "image-name": "cut.svg",
+          "name": "Schnitt"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.45
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    },
+    {
+      "layers": [
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "extended-srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "extended-srgb:0.43137,0.88235,0.75294,1.00000"
+              }
+            }
+          ],
+          "image-name": "beat-left.svg",
+          "name": "Takt links"
+        },
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "extended-srgb:0.80000,0.95686,0.90980,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "extended-srgb:0.29412,0.70588,0.60392,1.00000"
+              }
+            }
+          ],
+          "image-name": "beat-right.svg",
+          "name": "Takt rechts"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.4
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.2
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

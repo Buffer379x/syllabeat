@@ -315,3 +315,126 @@ public struct ApplyStoryboard: EditCommand {
         try project.regenerate(style: project.style, textScores: textScores, keep: project.lockedShots)
     }
 }
+
+extension Project {
+    /// Nach einer Handbearbeitung: Gibt es Shots, die nicht kompilieren, wird die Änderung abgelehnt.
+    func requireCompilable(_ cut: Cut, change: String) throws {
+        let broken = CutCompiler.brokenShots(self, cut: cut)
+        guard broken.isEmpty else {
+            let numbers = cut.shots.enumerated().filter { broken.contains($0.element.id) }.map { "\($0.offset + 1)" }
+            throw EditError.invalidValue(
+                "\(change) geht nicht: Einstellung \(numbers.joined(separator: ", ")) wäre kürzer als ein Frame oder länger als ihr Clip."
+            )
+        }
+    }
+
+    /// Von Hand geänderte Shots und ihre Kopien sind keine identischen Wiederholungen mehr.
+    func detachingCopies(_ cut: Cut, of ids: Set<String>) -> Cut {
+        var cut = cut
+        for index in cut.shots.indices {
+            let shot = cut.shots[index]
+            if ids.contains(shot.id) || shot.reasons?.copiedFrom.map(ids.contains) == true {
+                cut.shots[index].reasons?.copiedFrom = nil
+            }
+        }
+        return cut
+    }
+}
+
+/// `B`: die Einstellung an `time` teilen. Beide Hälften zeigen denselben Clip lückenlos weiter.
+public struct SplitShot: EditCommand {
+    public var point: CutPoint
+    public init(at point: CutPoint) { self.point = point }
+
+    public var actionName: String { "Schnitt einfügen" }
+
+    public func apply(to project: inout Project) throws {
+        guard var cut = project.cut,
+            let index = cut.shots.firstIndex(where: { $0.start.time < point.time && point.time < $0.end.time })
+        else { throw EditError.invalidValue("Hier liegt keine Einstellung, die sich teilen lässt.") }
+        let shot = cut.shots[index]
+        var first = shot
+        first.end = point
+        let second = Shot(
+            id: shot.id + "b", start: point, end: shot.end, clipID: shot.clipID, sceneID: shot.sceneID,
+            sourceIn: shot.sourceIn + Rational(seconds: point.time - shot.start.time), locked: shot.locked,
+            reasons: shot.reasons.map { ShotReasons(components: [:], total: 0, alternatives: $0.alternatives) })
+        cut.shots[index] = first
+        cut.shots.insert(second, at: index + 1)
+        cut = project.detachingCopies(cut, of: [shot.id])
+        cut = cut.renumbered()
+        try project.requireCompilable(cut, change: "Teilen")
+        project.cut = cut
+    }
+}
+
+/// ⌫: Einstellung mit der vorigen verschmelzen; die vorige läuft weiter.
+public struct MergeShotWithPrevious: EditCommand {
+    public var shotID: String
+    public init(shotID: String) { self.shotID = shotID }
+
+    public var actionName: String { "Schnitt entfernen" }
+
+    public func apply(to project: inout Project) throws {
+        guard var cut = project.cut, let index = cut.shots.firstIndex(where: { $0.id == shotID }), index > 0 else {
+            throw EditError.invalidValue("Die erste Einstellung hat keine vorige.")
+        }
+        let previous = cut.shots[index - 1].id
+        cut.shots[index - 1].end = cut.shots[index].end
+        cut.shots.remove(at: index)
+        cut = project.detachingCopies(cut, of: [previous, shotID])
+        cut = cut.renumbered()
+        try project.requireCompilable(cut, change: "Verschmelzen")
+        project.cut = cut
+    }
+}
+
+/// Shotkante ziehen (Trimmen wie „Rollen“): Die Grenze zwischen `index` und `index + 1` wandert nach `point`; die
+/// folgende Einstellung beginnt ihren Clip entsprechend später oder früher, damit ihr Bild an Ort und Stelle bleibt.
+public struct MoveCut: EditCommand {
+    public var index: Int
+    public var point: CutPoint
+    public init(after index: Int, to point: CutPoint) {
+        self.index = index
+        self.point = point
+    }
+
+    public var actionName: String { "Schnitt verschieben" }
+
+    public func apply(to project: inout Project) throws {
+        guard var cut = project.cut, index >= 0, index + 1 < cut.shots.count else {
+            throw EditError.invalidValue("Diese Schnittkante gibt es nicht.")
+        }
+        let next = cut.shots[index + 1]
+        guard cut.shots[index].start.time < point.time, point.time < next.end.time else {
+            throw EditError.invalidValue("Die Kante darf keine Einstellung überspringen.")
+        }
+        let delta = Rational(seconds: point.time) - Rational(seconds: next.start.time)
+        cut.shots[index].end = point
+        cut.shots[index + 1].start = point
+        cut.shots[index + 1].sourceIn = next.sourceIn + delta
+        guard cut.shots[index + 1].sourceIn >= .zero else {
+            throw EditError.invalidValue("Schnitt verschieben geht nicht: Der folgende Clip beginnt nicht früh genug.")
+        }
+        cut = project.detachingCopies(cut, of: [cut.shots[index].id, next.id])
+        try project.requireCompilable(cut, change: "Schnitt verschieben")
+        project.cut = cut
+    }
+}
+
+extension Cut {
+    /// Shots nach dem Einfügen oder Entfernen wieder `shot-1` … nummerieren; Verweise auf Vorlagen wandern mit.
+    func renumbered() -> Cut {
+        var mapping: [String: String] = [:]
+        for (offset, shot) in shots.enumerated() { mapping[shot.id] = "shot-\(offset + 1)" }
+        var result = self
+        result.shots = shots.map { shot in
+            var reasons = shot.reasons
+            reasons?.copiedFrom = shot.reasons?.copiedFrom.flatMap { mapping[$0] }
+            return Shot(
+                id: mapping[shot.id]!, start: shot.start, end: shot.end, clipID: shot.clipID, sceneID: shot.sceneID,
+                sourceIn: shot.sourceIn, locked: shot.locked, reasons: reasons)
+        }
+        return result
+    }
+}

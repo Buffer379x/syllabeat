@@ -143,9 +143,21 @@ public enum ModelCatalog {
         return package
     }
 
+    /// Arbeitsspeicher dieses Macs; der Testschalter `-SBSimulatedMemoryGB 16` simuliert einen kleineren (E12).
+    public static var physicalMemory: UInt64 {
+        let simulated = UserDefaults.standard.integer(forKey: "SBSimulatedMemoryGB")
+        return simulated > 0 ? UInt64(simulated) * 1_073_741_824 : ProcessInfo.processInfo.physicalMemory
+    }
+
     /// Empfohlenes lokales Bildmodell für diesen Mac (Plan 7.2): bis 16 GB die 4-Bit-Variante.
-    public static func recommendedVision(memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> ModelPackage {
+    public static func recommendedVision(memory: UInt64 = physicalMemory) -> ModelPackage {
         memory <= 16 * 1_073_741_824 ? qwen3VL4bit : qwen3VL8bit
+    }
+
+    /// Zu groß für diesen Mac: braucht beim Rechnen mehr als gut ein Drittel des Arbeitsspeichers (App, Song,
+    /// Vorschau und System brauchen den Rest).
+    public static func tooLarge(_ package: ModelPackage, memory: UInt64 = physicalMemory) -> Bool {
+        package.memoryBytes > 0 && Double(package.memoryBytes) > 0.35 * Double(memory)
     }
 
     public static let all: [ModelPackage] = [siglip2, qwen3VL8bit, qwen3VL4bit]

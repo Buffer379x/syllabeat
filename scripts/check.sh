@@ -13,6 +13,9 @@ swift format lint --strict --configuration .swift-format $SWIFT_FILES Packages/S
 echo "== Paket-Tests"
 swift test --package-path Packages/SyllaBeatKit
 
+echo "== Hilfe im App-Bündel aktuell"
+cmp -s BEDIENUNG.html App/Resources/BEDIENUNG.html || { echo "App/Resources/BEDIENUNG.html weicht von BEDIENUNG.html ab (cp BEDIENUNG.html App/Resources/)"; exit 1; }
+
 echo "== sbtool selftest"
 swift run --package-path Packages/SyllaBeatKit --quiet sbtool selftest
 

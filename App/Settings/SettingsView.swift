@@ -159,10 +159,11 @@ private struct ModelSettings: View {
                 Text("Bildbeschreibung und Regie")
             } footer: {
                 Text(
-                    "Dieser Mac hat \(Format.bytes(ProcessInfo.processInfo.physicalMemory)) Arbeitsspeicher. Lokale Modelle laufen im Inferenzdienst und werden nach zwei Minuten Ruhe entladen."
+                    "Dieser Mac hat \(Format.bytes(ModelCatalog.physicalMemory)) Arbeitsspeicher. Lokale Modelle laufen im Inferenzdienst und werden nach zwei Minuten Ruhe entladen."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
+            LegacyModelsSection()
             Section {
                 FolderRow(title: "Ort", url: Locations.models)
                 LabeledContent("Speicherort") {
@@ -216,8 +217,13 @@ private struct PackageRow: View {
         } label: {
             HStack(spacing: 6) {
                 Text(package.title)
-                if recommended {
+                if ModelCatalog.tooLarge(package) {
+                    Label("Zu groß für diesen Mac", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2.weight(.semibold)).foregroundStyle(.orange)
+                        .accessibilityIdentifier("model.tooLarge.\(package.id)")
+                } else if recommended {
                     Text("Empfohlen für deinen Mac").font(.caption2.weight(.semibold))
+                        .accessibilityIdentifier("model.recommended.\(package.id)")
                         .padding(.horizontal, 6).padding(.vertical, 1)
                         .background(.tint.opacity(0.2), in: Capsule())
                 }
@@ -279,5 +285,62 @@ private struct PlannedSettings: View {
         } description: {
             Text(detail)
         }
+    }
+}
+
+/// Modelle aus SyllaBeat 0.2 (Ollama, Whisper über Hugging Face) braucht 0.3 nicht mehr: Hinweis mit Größe,
+/// „Im Finder zeigen“ und Löschen nach Rückfrage.
+private struct LegacyModelsSection: View {
+    @State private var folders: [(url: URL, bytes: Int64)] = []
+    @State private var confirm: URL?
+
+    static var candidates: [URL] {
+        let base = URL.applicationSupportDirectory.appendingPathComponent("SyllaBeat/models", isDirectory: true)
+        return ["ollama", "huggingface"].map { base.appendingPathComponent($0, isDirectory: true) }
+    }
+
+    var body: some View {
+        if !folders.isEmpty {
+            Section {
+                ForEach(folders, id: \.url) { folder in
+                    LabeledContent {
+                        HStack {
+                            Button("Im Finder zeigen") { NSWorkspace.shared.activateFileViewerSelecting([folder.url]) }
+                            Button("Löschen …", role: .destructive) { confirm = folder.url }
+                        }
+                    } label: {
+                        Text(folder.url.lastPathComponent == "ollama" ? "Ollama-Modelle" : "Whisper-Modelle (Python)")
+                        Text(
+                            "\(Format.bytes(UInt64(max(0, folder.bytes)))) · von SyllaBeat 0.2, in 0.3 nicht mehr genutzt"
+                        )
+                    }
+                }
+            } header: {
+                Text("Aus SyllaBeat 0.2")
+            } footer: {
+                Text(
+                    "0.3 nutzt eigene Modelle (Apple Intelligence, MLX, Core ML). Die alten Dateien können weg, solange 0.2 nicht mehr gebraucht wird."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            .confirmationDialog(
+                "„\(confirm?.lastPathComponent ?? "")“ endgültig löschen?",
+                isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })
+            ) {
+                Button("Löschen", role: .destructive) {
+                    if let url = confirm { try? FileManager.default.removeItem(at: url) }
+                    confirm = nil
+                    refresh()
+                }
+            } message: {
+                Text("SyllaBeat 0.2 müsste die Modelle danach neu laden.")
+            }
+        }
+        Color.clear.frame(height: 0).onAppear(perform: refresh)
+    }
+
+    private func refresh() {
+        folders = Self.candidates.filter { FileManager.default.fileExists(atPath: $0.path) }
+            .map { ($0, FileManager.default.allocatedSize(of: $0)) }
     }
 }

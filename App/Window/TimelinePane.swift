@@ -43,7 +43,8 @@ struct TimelinePane: View {
                             actions: TimelineActions(
                                 seek: { song.playback.seek(to: $0) }, run: run,
                                 zoom: { value, _ in zoom = clamp(value, analysis) },
-                                select: { cut.selection = $0 })
+                                select: { cut.selection = $0 },
+                                transport: { song.playback.transport($0) })
                         )
                         .onAppear { width = geometry.size.width }
                         .onChange(of: geometry.size.width) { _, new in width = new }
@@ -162,9 +163,11 @@ struct TimelinePane: View {
                 name: project.clip(withID: shot.clipID)?.name ?? shot.clipID, locked: shot.locked,
                 copied: shot.reasons?.copiedFrom != nil, thumbnailKey: thumbnailURL(shot)?.path)
         }
-        return TimelineContent(
+        var content = TimelineContent(
             duration: analysis.duration, beats: analysis.beats, meter: analysis.meter, sections: analysis.sections,
             words: analysis.words, lines: analysis.lines, shots: shots, waveform: song.waveform)
+        content.fps = project.timeline.fps.doubleValue
+        return content
     }
 }
 

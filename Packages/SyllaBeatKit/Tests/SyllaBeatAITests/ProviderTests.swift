@@ -225,6 +225,18 @@ final class ScriptedProvider: LanguageModelProvider, @unchecked Sendable {
         }
     }
 
+    /// E7: Ohne erreichbaren Server meldet sich der Anbieter verständlich ab (hier: geschlossener Port auf diesem Mac).
+    @Test func unreachableServerReportsOffline() async throws {
+        let provider = OllamaProvider(baseURL: URL(string: "http://127.0.0.1:9")!, model: "qwen3:8b")
+        do {
+            _ = try await provider.testConnection()
+            Issue.record("Fehler erwartet")
+        } catch let error as ProviderError {
+            #expect(error == .offline("127.0.0.1"))
+            #expect(error.localizedDescription.contains("nicht erreichbar"))
+        }
+    }
+
     @Test func manualProviderHandsOutPrompt() async throws {
         do {
             _ = try await ManualProvider().generate(Self.request)

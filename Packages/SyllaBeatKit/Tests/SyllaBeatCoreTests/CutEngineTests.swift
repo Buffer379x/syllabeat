@@ -202,3 +202,73 @@ import Testing
         #expect(failures.isEmpty, "\(failures.prefix(5))")
     }
 }
+
+/// Handbearbeitung in der Bildspur: teilen, verschmelzen, Kante ziehen.
+@Suite struct ManualCutTests {
+    static func project() throws -> Project {
+        var project = SyntheticProject.make(seed: 3, clips: 20...30, duration: 60...90)
+        project.style.refrainMode = .identical
+        try GenerateCut().apply(to: &project)
+        return project
+    }
+
+    @Test func splitKeepsPictureContinuous() throws {
+        var project = try Self.project()
+        let shot = project.cut!.shots[2]
+        let middle = (shot.start.time + shot.end.time) / 2
+        try SplitShot(at: CutPoint(time: middle, anchor: .free)).apply(to: &project)
+        let cut = project.cut!
+        #expect(cut.shots.count == 1 + (try Self.project()).cut!.shots.count)
+        #expect(cut.shots[3].clipID == shot.clipID)
+        #expect(cut.shots[3].sourceIn == shot.sourceIn + Rational(seconds: middle - shot.start.time))
+        #expect(cut.shots.map(\.id) == (1...cut.shots.count).map { "shot-\($0)" })
+        #expect(CutValidator.validate(project, cut: cut, minimumFactor: 0).isEmpty)
+    }
+
+    @Test func mergeExtendsPreviousOrRefuses() throws {
+        var project = try Self.project()
+        let before = project.cut!
+        do {
+            try MergeShotWithPrevious(shotID: before.shots[4].id).apply(to: &project)
+            #expect(project.cut!.shots[3].end == before.shots[4].end)
+            #expect(project.cut!.shots.count == before.shots.count - 1)
+            #expect(CutValidator.validate(project, cut: project.cut!, minimumFactor: 0).isEmpty)
+        } catch {
+            // Reicht der Clip der vorigen Einstellung nicht, bleibt alles, wie es war.
+            #expect(project.cut == before)
+        }
+        #expect(throws: EditError.self) { try MergeShotWithPrevious(shotID: before.shots[0].id).apply(to: &project) }
+    }
+
+    @Test func moveCutRollsTheNextShot() throws {
+        var project = try Self.project()
+        let before = project.cut!
+        let index = before.shots.indices.dropFirst().first { before.shots[$0 + 1].sourceIn > Rational(1, 2) }!
+        let target = before.shots[index].end.time - 0.2
+        try MoveCut(after: index, to: CutPoint(time: target, anchor: .free)).apply(to: &project)
+        let moved = project.cut!
+        #expect(moved.shots[index].end.time == target)
+        #expect(moved.shots[index + 1].start.time == target)
+        #expect(moved.shots[index + 1].sourceIn == before.shots[index + 1].sourceIn - Rational(seconds: 0.2))
+        #expect(CutValidator.validate(project, cut: moved, minimumFactor: 0).isEmpty)
+        // Über die Nachbar-Einstellung hinaus geht es nicht.
+        #expect(throws: EditError.self) {
+            try MoveCut(after: index, to: CutPoint(time: moved.shots[index + 1].end.time + 1, anchor: .free))
+                .apply(to: &project)
+        }
+    }
+}
+
+/// Lange Strecken ohne Beats (Intro ohne Schlagzeug) werden trotzdem geschnitten (E6, organ-124: 19 s ohne Beat).
+@Test func longStretchWithoutBeatsIsSplit() throws {
+    var project = SyntheticProject.make(seed: 11, clips: 20...20, duration: 60...60)
+    var analysis = try #require(project.analysis)
+    // Wie organ-124: die ersten 20 s ohne Beat, ein einzelner Beat kurz vor dem Ende der Strecke.
+    analysis.beats.removeAll { $0.time < 20 && $0.time > 0.1 && abs($0.time - 19.3) > 0.3 }
+    project.analysis = analysis
+    try GenerateCut().apply(to: &project)
+    let cut = try #require(project.cut)
+    #expect(CutValidator.validate(project, cut: cut).isEmpty)
+    let longest = cut.shots.filter { $0.end.time <= 20 }.map(\.duration).max() ?? 0
+    #expect(longest <= SlotPlanner.maximumShot)
+}

@@ -98,9 +98,27 @@ final class ProjectWindowUITests: XCTestCase {
         let app = launch(opening: url)
         XCTAssertTrue(element(app, "clip.clip-a").waitForExistence(timeout: 15))
         app.typeKey(",", modifierFlags: .command)
+        // Das Einstellungsfenster merkt sich den letzten Bereich.
+        let general = app.toolbars.buttons["Allgemein"].firstMatch
+        if general.waitForExistence(timeout: 5) { general.click() }
         let check = element(app, "settings.checkInference")
         XCTAssertTrue(check.waitForExistence(timeout: 5))
         check.click()
-        XCTAssertTrue(element(app, "settings.inferenceReady").waitForExistence(timeout: 15), "Dienst antwortet nicht")
+        let ready = element(app, "settings.inferenceReady")
+        XCTAssertTrue(ready.waitForExistence(timeout: 15), "Dienst antwortet nicht")
+        let firstLabel = ready.label
+
+        // E8: Der Dienst stürzt ab (hier: hart beendet). Die App bleibt bedienbar und verbindet sich neu.
+        let kill = Process()
+        kill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        kill.arguments = ["-9", "-x", "SyllaBeatInference"]
+        try kill.run()
+        kill.waitUntilExit()
+        sleep(1)
+        check.click()
+        XCTAssertTrue(ready.waitForExistence(timeout: 20), "Dienst nach dem Absturz nicht wieder erreichbar")
+        if kill.terminationStatus == 0 {
+            XCTAssertNotEqual(ready.label, firstLabel, "gleiche PID – Dienst wurde nicht neu gestartet")
+        }
     }
 }

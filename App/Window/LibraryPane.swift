@@ -212,6 +212,8 @@ private struct ClipTile: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(clip.name), \(Format.duration(clip.meta.duration))")
         .accessibilityIdentifier("clip.\(clip.id)")
+        // Auf eine Einstellung in der Bildspur ziehen ersetzt deren Clip.
+        .draggable("\(TimelineCanvas.clipDragPrefix)\(clip.id)")
     }
 }
 
@@ -234,6 +236,8 @@ private struct ClipRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("clip.\(clip.id)")
+        // Auf eine Einstellung in der Bildspur ziehen ersetzt deren Clip.
+        .draggable("\(TimelineCanvas.clipDragPrefix)\(clip.id)")
     }
 
     private var info: String {

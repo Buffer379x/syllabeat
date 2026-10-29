@@ -245,6 +245,22 @@ final class Playback {
         }
     }
 
+    /// J/K/L: −1 rückwärts, 0 anhalten, +1 vorwärts; wiederholtes Drücken verdoppelt bis ×4.
+    func transport(_ direction: Int) {
+        guard isReady else { return }
+        let rate = player.rate
+        switch direction {
+        case 0:
+            player.pause()
+        case let forward where forward > 0:
+            player.rate = rate >= 1 ? min(4, rate * 2) : 1
+        default:
+            guard player.currentItem?.canPlayReverse ?? false else { return }
+            player.rate = rate <= -1 ? max(-4, rate * 2) : -1
+        }
+        isPlaying = player.rate != 0
+    }
+
     func seek(to seconds: Double) {
         time = max(0, seconds)
         player.seek(

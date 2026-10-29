@@ -94,32 +94,12 @@ func compile(_ path: String) throws {
 }
 
 func selftest() throws {
-    var checks = 0
-    func check(_ condition: Bool, _ message: String) throws {
-        guard condition else { throw ToolError(description: "Selbsttest fehlgeschlagen: \(message)") }
-        checks += 1
+    let result = SelfTest.run()
+    for name in result.failed { print("✗ \(name)") }
+    guard result.ok else {
+        throw ToolError(description: "Selbsttest fehlgeschlagen (\(result.failed.count) Prüfungen)")
     }
-    try check(Rational(seconds: 0.1) == Rational(1, 10), "Dezimalumwandlung")
-    try check((Rational(1, 2)).roundedHalfUp() == 1, "Rundung ab halb aufwärts")
-    try check(FrameMath.frame(atSeconds: 1.0, rate: Rational(24000, 1001)) == 24, "NTSC-Frames")
-    let legacy = """
-        {"version": 1, "name": "Selbsttest", "timeline": {"fps_num": 25, "fps_den": 1, "width": 1920, "height": 1080},
-         "clips": [{"id": "a", "path": "/tmp/a.mov", "name": "a.mov", "duration": 10, "fps_num": 50, "fps_den": 1,
-                    "width": 1920, "height": 1080}],
-         "audio": {"duration": 2.0, "beats": [0.5, 1.0, 1.5]},
-         "plan": {"version": 1, "shots": [{"clip_id": "a", "start_beat": 0, "end_beat": 2, "source_in": 1.25},
-                                          {"clip_id": "a", "start_beat": 2, "end_beat": 4, "source_in": 4}]}}
-        """
-    let loaded = try ProjectFile.decode(Data(legacy.utf8))
-    try check(loaded.migratedFrom == 1, "Migration erkannt")
-    let project = loaded.project
-    try check(project.analysis?.beats.count == 3, "Beats übernommen")
-    let table = try CutCompiler.compile(project, cut: project.cut!)
-    try check(table.entries.map(\.startFrame) == [0, 25], "Schnittgrenzen")
-    try check(table.entries[0].sourceInFrame == 63 && table.entries[0].sourceOutFrame == 113, "Quellframes 50p")
-    let roundTrip = try ProjectFile.decode(ProjectFile.encode(project))
-    try check(roundTrip.project == project && roundTrip.migratedFrom == nil, "v2 verlustfrei gesichert")
-    print("Selbsttest bestanden (\(checks) Prüfungen).")
+    print("Selbsttest bestanden (\(result.passed.count) Prüfungen).")
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())

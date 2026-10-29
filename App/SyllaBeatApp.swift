@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import SyllaBeatAI
 import SyllaBeatCore
 
 @main
@@ -16,6 +17,7 @@ struct SyllaBeatApp: App {
         .commands {
             MediaCommands()
             CutCommands()
+            HelpCommands()
         }
 
         Settings {
@@ -31,8 +33,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.string(forKey: "SBOpenDocument").map { URL(fileURLWithPath: $0) }
     }
 
+    /// `--self-test`: eingebaute Prüfungen plus Bündel (Inferenzdienst, Hilfe), Ausgabe auf stdout, dann Ende.
+    private var selfTest: Bool { CommandLine.arguments.contains("--self-test") }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.app.info("SyllaBeat \(BuildInfo.version, privacy: .public) gestartet")
+        if selfTest {
+            Task { await Self.runSelfTest() }
+            return
+        }
         guard let url = documentToOpen else { return }
         NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
             if let error {
@@ -42,7 +51,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        documentToOpen == nil
+        documentToOpen == nil && !selfTest
+    }
+
+    @MainActor
+    static func runSelfTest() async {
+        var result = SelfTest.run()
+        if Bundle.main.url(forResource: "BEDIENUNG", withExtension: "html") != nil {
+            result.passed.append("Hilfe im Bündel")
+        } else {
+            result.failed.append("Hilfe im Bündel")
+        }
+        do {
+            let status = try await InferenceClient().status()
+            result.passed.append("Inferenzdienst antwortet (\(status.version))")
+        } catch {
+            result.failed.append("Inferenzdienst: \(error.localizedDescription)")
+        }
+        var output = "SyllaBeat \(BuildInfo.version) (\(BuildInfo.build)) – Selbsttest\n"
+        for name in result.passed { output += "✓ \(name)\n" }
+        for name in result.failed { output += "✗ \(name)\n" }
+        output += result.ok ? "Bestanden (\(result.passed.count) Prüfungen).\n" : "Fehlgeschlagen.\n"
+        FileHandle.standardOutput.write(Data(output.utf8))
+        exit(result.ok ? 0 : 1)
+    }
+}
+
+/// Hilfe: die Bedienungsanleitung aus dem App-Bündel im Browser.
+struct HelpCommands: Commands {
+    var body: some Commands {
+        CommandGroup(replacing: .help) {
+            Button("SyllaBeat-Hilfe") {
+                if let url = Bundle.main.url(forResource: "BEDIENUNG", withExtension: "html") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            .keyboardShortcut("?", modifiers: .command)
+        }
     }
 }
 

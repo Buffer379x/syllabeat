@@ -42,6 +42,8 @@ struct ProjectWorkspace: View {
     @State private var showsInspector = true
     @State private var backupNotice: String?
     @State private var errorMessage: String?
+    @AppStorage("onboarding.done") private var onboardingDone = false
+    @State private var showsWelcome = false
 
     private var project: Project { document.project }
 
@@ -112,6 +114,8 @@ struct ProjectWorkspace: View {
         .navigationSubtitle(subtitle)
         .task(id: configuration?.fileURL) { createLegacyBackupIfNeeded() }
         .task {
+            // Willkommen einmal beim ersten Start; nicht bei automatischen Abläufen (UI-Tests, -SBOpenDocument).
+            if !onboardingDone, UserDefaults.standard.string(forKey: "SBOpenDocument") == nil { showsWelcome = true }
             media.undoManager = undoManager
             cut.undoManager = undoManager
             ai.undoManager = undoManager
@@ -140,6 +144,12 @@ struct ProjectWorkspace: View {
                 ai.grantConsent(request)
             } cancel: {
                 ai.consentRequest = nil
+            }
+        }
+        .sheet(isPresented: $showsWelcome) {
+            WelcomeSheet {
+                onboardingDone = true
+                showsWelcome = false
             }
         }
         .sheet(isPresented: Bindable(cut).showsExport) {

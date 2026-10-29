@@ -214,13 +214,18 @@ public enum SlotPlanner {
             var start = split.last!.time
             while point.time - start > maximum {
                 let target = start + (point.time - start) / ceil((point.time - start) / maximum)
-                guard
-                    let index = beats.indices.filter({ beats[$0] > start + minimum && beats[$0] < point.time - minimum }
-                    )
-                    .min(by: { abs(beats[$0] - target) < abs(beats[$1] - target) })
-                else { break }
-                split.append(CutPoint(time: beats[index], anchor: .beat(index)))
-                start = beats[index]
+                // Nur Beats, bis zu denen das Stück davor höchstens `maximum` lang ist.
+                if let index = beats.indices.filter({
+                    beats[$0] > start + minimum && beats[$0] <= start + maximum && beats[$0] < point.time - minimum
+                })
+                .min(by: { abs(beats[$0] - target) < abs(beats[$1] - target) }) {
+                    split.append(CutPoint(time: beats[index], anchor: .beat(index)))
+                    start = beats[index]
+                } else {
+                    // Keine Beats (z. B. Intro ohne Schlagzeug): gleichmäßig teilen, sonst passt kein Clip.
+                    split.append(CutPoint(time: target, anchor: .free))
+                    start = target
+                }
             }
             split.append(point)
         }
