@@ -1,0 +1,107 @@
+{
+  "clips": [
+    {
+      "file": "schnitte-25.mov",
+      "fps_num": 25,
+      "fps_den": 1,
+      "frames": 180,
+      "cuts": [
+        37,
+        80
+      ],
+      "rotation": 0,
+      "timecode": null,
+      "vfr": false
+    },
+    {
+      "file": "schnitte-23976.mov",
+      "fps_num": 24000,
+      "fps_den": 1001,
+      "frames": 180,
+      "cuts": [
+        50,
+        101
+      ],
+      "rotation": 0,
+      "timecode": null,
+      "vfr": false
+    },
+    {
+      "file": "schnitte-50.mov",
+      "fps_num": 50,
+      "fps_den": 1,
+      "frames": 180,
+      "cuts": [
+        77
+      ],
+      "rotation": 0,
+      "timecode": null,
+      "vfr": false
+    },
+    {
+      "file": "schnitte-5994.mov",
+      "fps_num": 60000,
+      "fps_den": 1001,
+      "frames": 180,
+      "cuts": [
+        61,
+        143
+      ],
+      "rotation": 0,
+      "timecode": null,
+      "vfr": false
+    },
+    {
+      "file": "zeitbasis600-5994.mov",
+      "fps_num": 60000,
+      "fps_den": 1001,
+      "frames": 150,
+      "cuts": [],
+      "rotation": 0,
+      "timecode": null,
+      "vfr": false
+    },
+    {
+      "file": "zeitbasis600-23976.mov",
+      "fps_num": 24000,
+      "fps_den": 1001,
+      "frames": 150,
+      "cuts": [],
+      "rotation": 0,
+      "timecode": null,
+      "vfr": false
+    },
+    {
+      "file": "hoch-timecode.mov",
+      "fps_num": 25,
+      "fps_den": 1,
+      "frames": 50,
+      "cuts": [],
+      "rotation": 90,
+      "timecode": "10:00:00:00",
+      "vfr": false
+    },
+    {
+      "file": "vfr.mov",
+      "fps_num": 30,
+      "fps_den": 1,
+      "frames": 60,
+      "cuts": [],
+      "rotation": 0,
+      "timecode": null,
+      "vfr": true
+    },
+    {
+      "file": "analyse.mov",
+      "fps_num": 25,
+      "fps_den": 1,
+      "frames": 150,
+      "cuts": [
+        60
+      ],
+      "rotation": 0,
+      "timecode": null,
+      "vfr": false
+    }
+  ]
+}

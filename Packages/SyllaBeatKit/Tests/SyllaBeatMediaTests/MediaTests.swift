@@ -6,36 +6,31 @@ import Testing
 @testable import SyllaBeatMedia
 
 @Suite(.timeLimit(.minutes(2))) struct MetadataTests {
-    @Test(arguments: [(Int32(24000), Int32(1001)), (25, 1), (50, 1), (60000, 1001)])
-    func ratesAreExact(num: Int32, den: Int32) async throws {
-        let folder = try TestFolder.make()
-        let url = folder.appendingPathComponent("rate.mov")
-        // Zeitbasis 600 (wie beim iPhone): 59,94 und 60 fps sind erst über ~120 Frames unterscheidbar.
-        try SyntheticClip(rate: (num, den), frames: 150).write(to: url)
-        let meta = try await MediaProbe.read(url)
-        #expect(meta.fps == Rational(Int64(num), Int64(den)))
+    @Test(arguments: [
+        ("schnitte-23976.mov", Rational(24000, 1001), Int64(180)), ("schnitte-25.mov", Rational(25), 180),
+        ("schnitte-50.mov", Rational(50), 180), ("schnitte-5994.mov", Rational(60000, 1001), 180),
+        // Zeitbasis 600 wie beim iPhone: Einzelne Framedauern sind gerundet, die Rate muss trotzdem stimmen.
+        ("zeitbasis600-5994.mov", Rational(60000, 1001), 150), ("zeitbasis600-23976.mov", Rational(24000, 1001), 150),
+    ])
+    func ratesAreExact(file: String, rate: Rational, frames: Int64) async throws {
+        let meta = try await MediaProbe.read(TestFolder.clip(file))
+        #expect(meta.fps == rate)
         #expect(meta.isVFR == false)
         #expect(meta.width == 192 && meta.height == 108)
-        #expect(meta.frameCount == 150)
+        #expect(meta.frameCount == frames)
         #expect(meta.hasAudio == false)
-        #expect(meta.codec == "jpeg")
+        #expect(meta.codec == "avc1")
     }
 
     @Test func rotationAndTimecode() async throws {
-        let folder = try TestFolder.make()
-        let url = folder.appendingPathComponent("hoch.mov")
-        try SyntheticClip(rate: (25, 1), frames: 50, rotation: 90, startTimecodeFrames: 10 * 3600 * 25).write(to: url)
-        let meta = try await MediaProbe.read(url)
+        let meta = try await MediaProbe.read(TestFolder.clip("hoch-timecode.mov"))
         #expect(meta.rotation == 90)
         #expect(meta.displaySize.width == 108 && meta.displaySize.height == 192)
         #expect(meta.startTimecode == "10:00:00:00")
     }
 
     @Test func variableRateIsFlagged() async throws {
-        let folder = try TestFolder.make()
-        let url = folder.appendingPathComponent("vfr.mov")
-        try SyntheticClip(rate: (30, 1), frames: 60, variableRate: true).write(to: url)
-        let meta = try await MediaProbe.read(url)
+        let meta = try await MediaProbe.read(TestFolder.clip("vfr.mov"))
         #expect(meta.isVFR == true)
         #expect(meta.warnings.contains { $0.contains("Variable Bildrate") })
     }
@@ -72,19 +67,17 @@ extension Clip {
 
 @Suite(.timeLimit(.minutes(2))) struct SceneTests {
     /// Schnitte werden framegenau gefunden, auch bei NTSC-Raten und mitten zwischen zwei Stichproben.
-    @Test(arguments: [
-        (Int32(25), Int32(1), [37, 80]), (24000, 1001, [50, 101]), (50, 1, [77]), (60000, 1001, [61, 143]),
-    ])
-    func cutsAreFrameAccurate(num: Int32, den: Int32, cuts: [Int]) async throws {
-        let folder = try TestFolder.make()
-        let url = folder.appendingPathComponent("schnitte.mov")
-        let recipe = SyntheticClip(rate: (num, den), frames: 180, cutFrames: cuts)
-        try recipe.write(to: url)
-        let scan = try await SceneDetector.scan(url)
-        let frame = Double(den) / Double(num)
+    @Test(
+        arguments: [
+            ("schnitte-25.mov", 25.0, [37, 80]), ("schnitte-23976.mov", 24000.0 / 1001, [50, 101]),
+            ("schnitte-50.mov", 50.0, [77]), ("schnitte-5994.mov", 60000.0 / 1001, [61, 143]),
+        ] as [(String, Double, [Int])])
+    func cutsAreFrameAccurate(file: String, fps: Double, cuts: [Int]) async throws {
+        let scan = try await SceneDetector.scan(TestFolder.clip(file))
         #expect(scan.cuts.count == cuts.count)
-        for (found, expected) in zip(scan.cuts, recipe.cutTimes()) {
-            #expect(abs(found - expected) < frame / 2, "gefunden \(found), erwartet \(expected)")
+        for (found, frame) in zip(scan.cuts, cuts) {
+            let expected = Double(frame) / fps
+            #expect(abs(found - expected) < 0.5 / fps, "gefunden \(found), erwartet \(expected)")
         }
         #expect(scan.filmstrip.count == 10)
         #expect(scan.samples.contains { $0.motion > 0 })
@@ -103,7 +96,7 @@ extension Clip {
     @Test func fullAnalysisWritesCacheAndFeatures() async throws {
         let folder = try TestFolder.make()
         let url = folder.appendingPathComponent("analyse.mov")
-        try SyntheticClip(rate: (25, 1), frames: 150, cutFrames: [60]).write(to: url)
+        try FileManager.default.copyItem(at: TestFolder.clip("analyse.mov"), to: url)
         let cache = MediaCache(root: folder.appendingPathComponent("cache"))
         let analyzer = ClipAnalyzer(cache: cache)
         var clip = try await analyzer.probe(url)
@@ -217,7 +210,7 @@ extension Clip {
     @Test func variableRateBecomesConstant() async throws {
         let folder = try TestFolder.make()
         let source = folder.appendingPathComponent("vfr.mov")
-        try SyntheticClip(rate: (30, 1), frames: 60, variableRate: true).write(to: source)
+        try FileManager.default.copyItem(at: TestFolder.clip("vfr.mov"), to: source)
         let output = folder.appendingPathComponent("cfr.mov")
         try await FFmpeg.locate()!.convert(source, to: output, preset: .hevc, constantRate: Rational(30))
         let meta = try await MediaProbe.read(output)
