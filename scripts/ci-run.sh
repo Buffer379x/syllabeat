@@ -24,7 +24,11 @@ done
 [ "${STATUS:-}" = 124 ] || { wait "$PID"; STATUS=$?; }
 cat "$LOG"
 if [ "$STATUS" != 0 ]; then
-    TAIL=$(tr -d '\r' < "$LOG" | grep -v "^\[\|Fetch\|working copy\|Working copy\|\[2K" | tail -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+    CLEAN="${LOG}.clean"
+    tr -d '\r' < "$LOG" | grep -v "^\[\|Fetch\|working copy\|Working copy\|\[2K" > "$CLEAN"
+    # Zuerst alle Fehlerzeilen, danach das Ende des Protokolls.
+    TAIL=$( { grep -E "✘|error:|Fehler" "$CLEAN" | head -40; echo "…"; tail -25 "$CLEAN"; } \
+        | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
     echo "::error title=Prüfung fehlgeschlagen (Status $STATUS)::$TAIL"
 fi
 exit "$STATUS"
