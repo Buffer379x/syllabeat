@@ -68,7 +68,6 @@ extension Clip {
 @Suite(.timeLimit(.minutes(2))) struct SceneTests {
     /// Schnitte werden framegenau gefunden, auch bei NTSC-Raten und mitten zwischen zwei Stichproben.
     @Test(
-        .disabled(if: Hardware.isVirtualMachine, Hardware.reason),
         arguments: [
             ("schnitte-25.mov", 25.0, [37, 80]), ("schnitte-23976.mov", 24000.0 / 1001, [50, 101]),
             ("schnitte-50.mov", 50.0, [77]), ("schnitte-5994.mov", 60000.0 / 1001, [61, 143]),
@@ -94,8 +93,7 @@ extension Clip {
         #expect(SceneDetector.scenes(cuts: [], duration: 0.5, clipID: "x").count == 1)
     }
 
-    @Test(.disabled(if: Hardware.isVirtualMachine, Hardware.reason))
-    func fullAnalysisWritesCacheAndFeatures() async throws {
+    @Test func fullAnalysisWritesCacheAndFeatures() async throws {
         let folder = try TestFolder.make()
         let url = folder.appendingPathComponent("analyse.mov")
         try FileManager.default.copyItem(at: TestFolder.clip("analyse.mov"), to: url)
@@ -195,7 +193,7 @@ extension Clip {
 
 /// Wandlung mit ffmpeg; läuft nur, wenn ffmpeg verfügbar ist (`SYLLABEAT_FFMPEG` oder installierte Komponente).
 @Suite(
-    .enabled(if: FFmpeg.locate() != nil), .disabled(if: Hardware.isVirtualMachine, Hardware.reason),
+    .enabled(if: FFmpeg.locate() != nil),
     .timeLimit(.minutes(2))
 ) struct ConversionTests {
     @Test func mkvBecomesUsableWorkingCopy() async throws {

@@ -26,10 +26,6 @@ jobs:
           swift --version
       - name: Metal-Toolchain (für spätere MLX-Shader)
         run: xcodebuild -downloadComponent MetalToolchain
-      - name: Diagnose Medien und Suites (vorübergehend)
-        continue-on-error: true
-        timeout-minutes: 25
-        run: scripts/ci-diagnose.sh
       - name: Prüfungen (scripts/check.sh)
         run: scripts/ci-run.sh 1200 scripts/check.sh
       - name: Testergebnisse bei Fehlern sichern
