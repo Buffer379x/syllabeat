@@ -142,6 +142,9 @@ struct ProjectWorkspace: View {
                 ai.consentRequest = nil
             }
         }
+        .sheet(isPresented: Bindable(cut).showsExport) {
+            ExportSheet(project: project) { cut.showsExport = false }
+        }
         .sheet(item: Bindable(ai).manualExchange) { exchange in
             ManualExchangeSheet(exchange: exchange, ai: ai)
         }
@@ -206,6 +209,12 @@ struct ProjectWorkspace: View {
         }
         ToolbarItem(placement: .primaryAction) {
             CutToolbar(project: project, cut: cut)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button("Exportieren …", systemImage: "square.and.arrow.up") { cut.showsExport = true }
+                .disabled(project.cut == nil)
+                .help("Timeline für Final Cut Pro, DaVinci Resolve oder Premiere exportieren (⌘E)")
+                .accessibilityIdentifier("toolbar.export")
         }
         ToolbarItem(placement: .primaryAction) {
             JobCenterButton()

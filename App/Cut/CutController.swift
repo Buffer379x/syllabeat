@@ -32,6 +32,8 @@ final class CutController {
     private(set) var previewMissing: [String] = []
     private(set) var previewMilliseconds: Double?
     var errorMessage: String?
+    /// Export-Dialog offen (Werkzeugleiste, ⌘E).
+    var showsExport = false
 
     init(document: ProjectDocument, services: AppServices, media: MediaController, playback: Playback) {
         self.document = document

@@ -65,6 +65,10 @@ struct CutCommands: Commands {
             Divider()
             Button("Drei Varianten erzeugen") { cut?.createVariants() }
                 .disabled(!(cut?.canCut ?? false))
+            Divider()
+            Button("Exportieren …") { cut?.showsExport = true }
+                .keyboardShortcut("e", modifiers: .command)
+                .disabled(cut == nil)
         }
     }
 }

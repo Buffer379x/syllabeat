@@ -24,10 +24,19 @@ jobs:
           sw_vers
           xcodebuild -version
           swift --version
-      - name: Metal-Toolchain (für spätere MLX-Shader)
+      - name: Metal-Toolchain (für MLX-Shader)
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Prüfungen (scripts/check.sh)
         run: scripts/ci-run.sh 1200 scripts/check.sh
+      - name: OTIO-Exporte mit OpenTimelineIO einlesen
+        run: |
+          for fixture in tests/Fixtures/golden-v0.2.0/g*/project.v1.json; do
+            name=$(basename "$(dirname "$fixture")")
+            swift run --package-path Packages/SyllaBeatKit --quiet sbtool export "$fixture" "build/otio/$name" --ohne-pruefung
+          done
+          python3 -m venv build/otio-venv
+          build/otio-venv/bin/pip install --quiet "opentimelineio>=0.18"
+          build/otio-venv/bin/python tools/validate_otio.py build/otio/*/*.otio
       - name: Testergebnisse bei Fehlern sichern
         if: failure()
         uses: actions/upload-artifact@v4

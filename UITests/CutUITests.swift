@@ -121,4 +121,40 @@ final class CutUITests: XCTestCase {
         XCTAssertEqual(undone["seed"] as? Int, locked["seed"] as? Int)
         XCTAssertEqual((undone["shots"] as? [[String: Any]])?.count, lockedShots.count)
     }
+
+    /// Export für DaVinci Resolve: Dialog, Zielprogramm, Dateien mit Markern, Bildrate und Dauer aus dem Schnitt.
+    @MainActor
+    func testExportForResolve() throws {
+        let url = try makeProject()
+        // Der Export prüft, ob die Medien da sind: kurzer Song an der erwarteten Stelle.
+        try Data(count: 1024).write(to: folder.appendingPathComponent("fehlt.wav"))
+        let exports = folder.appendingPathComponent("Exporte")
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
+            "-AppleLocale", "de_DE", "-ai.vision.provider", "off", "-export.folder", exports.path,
+            "-export.target", "resolve",
+        ]
+        app.launch()
+        let canvas = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH 'Timeline:' AND NOT (label CONTAINS ' 0 Einstellungen')")
+        ).firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 20), "Autopilot hat nicht geschnitten")
+        app.typeKey("e", modifierFlags: .command)
+        let run = app.buttons["export.run"]
+        XCTAssertTrue(run.waitForExistence(timeout: 5), "Export-Dialog fehlt")
+        run.click()
+        let done = app.descendants(matching: .any).matching(identifier: "export.done").firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "Export nicht fertig")
+        let files = try FileManager.default.contentsOfDirectory(atPath: exports.path).sorted()
+        XCTAssertEqual(
+            files, ["Schnitt Marker.edl", "Schnitt.edl", "Schnitt.fcpxml", "clip-katalog.json", "schnittliste.json"])
+        // Resolve bekommt FCPXML (mit Song), dazu EDL und Marker-EDL.
+        let xml = try String(contentsOf: exports.appendingPathComponent("Schnitt.fcpxml"), encoding: .utf8)
+        XCTAssertTrue(xml.contains("duration=\"41s\" tcStart"), "Sequenzdauer 41 s")
+        XCTAssertTrue(xml.contains("value=\"Refrain\""), "Abschnittsmarker fehlt")
+        XCTAssertTrue(xml.contains("audioRole=\"dialogue.music\""), "Song fehlt")
+        let edl = try String(contentsOf: exports.appendingPathComponent("Schnitt.edl"), encoding: .utf8)
+        XCTAssertTrue(edl.hasPrefix("TITLE: Schnitt\nFCM: NON-DROP FRAME"))
+    }
 }

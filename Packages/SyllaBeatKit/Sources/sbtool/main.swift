@@ -24,6 +24,8 @@ let usage = """
       bench-timeline             Zeichenzeit der Timeline (6 min, 720 Beats) messen
       bench-cut                  Schnitt-Engine mit 500 Clips und 6-min-Song messen (E10)
       validate <Projekt>         Schnitt prüfen: Invarianten, Anker, Refrain-Kopien
+      export <Projekt> <Ordner> [--ziel finalCut|resolve|premiere|archive] [--wie-020] [--song-primaer] [--takte]
+                                 [--ohne-pruefung]   Timeline und Archiv exportieren
       autocut <Projekt> <Song> [<Songtext>]   Song analysieren (optional Text ausrichten) und schneiden
       preview <Projekt>          Vorschau-Komposition aufbauen und prüfen
       storyboard <Projekt> [--laeufe N] [--anbieter apple|ollama=…|anthropic] [--regie "…"] [--sichern]
@@ -146,6 +148,7 @@ do {
     case ("bench-timeline", 1): await MainActor.run { benchTimeline() }
     case ("bench-cut", 1): try benchCut()
     case ("validate", 2): try validateCut(arguments[1])
+    case ("export", 3...): try exportCommand(Array(arguments.dropFirst()))
     case ("autocut", 3): try await autocut(arguments[1], song: arguments[2])
     case ("autocut", 4): try await autocut(arguments[1], song: arguments[2], lyrics: arguments[3])
     case ("preview", 2): try await previewProject(arguments[1])

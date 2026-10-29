@@ -209,3 +209,35 @@ func previewProject(_ path: String) async throws {
             FrameMath.seconds(ofFrames: table.durationFrames, rate: table.fps).doubleValue))
     if !preview.missing.isEmpty { print("Fehlende oder unlesbare Clips: \(preview.missing.joined(separator: ", "))") }
 }
+
+/// Exportiert ein Projekt in alle (oder die Formate eines Zielprogramms). `--ohne-pruefung` überspringt die Prüfung
+/// auf fehlende Medien (für Fixtures mit erfundenen Pfaden), `--wie-020` exportiert ohne Marker und Schlagwörter.
+func exportCommand(_ arguments: [String]) throws {
+    guard arguments.count >= 2 else { throw ToolError(description: "Aufruf: export <Projekt> <Ordner> [Optionen]") }
+    let project = try load(arguments[0]).project
+    let folder = URL(fileURLWithPath: arguments[1])
+    var formats = ExportFormat.allCases
+    var options = ExportOptions()
+    var checkMedia = true
+    var index = 2
+    while index < arguments.count {
+        switch arguments[index] {
+        case "--ziel":
+            guard index + 1 < arguments.count, let target = ExportTarget(rawValue: arguments[index + 1]) else {
+                throw ToolError(description: "Ziel: \(ExportTarget.allCases.map(\.rawValue).joined(separator: ", "))")
+            }
+            formats = target.formats
+            index += 1
+        case "--ohne-pruefung": checkMedia = false
+        case "--wie-020": options = .legacy
+        case "--song-primaer": options.songPlacement = .primary
+        case "--takte": options.barMarkers = true
+        default: throw ToolError(description: "Unbekannte Option \(arguments[index])")
+        }
+        index += 1
+    }
+    let base = project.name.replacingOccurrences(of: "/", with: "-")
+    let urls = try ProjectExporter.export(
+        project, formats: formats, options: options, to: folder, baseName: base, checkMedia: checkMedia)
+    for url in urls { print(url.path) }
+}
