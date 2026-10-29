@@ -43,6 +43,8 @@ extension Project {
         cut.shots.removeAll { $0.end.time <= $0.start.time }
         for index in cut.shots.indices.dropFirst() { cut.shots[index].start = cut.shots[index - 1].end }
         self.cut = cut
+        // Einstellungen, für die das Material nicht mehr reicht, neu bestimmen (im selben Undo-Schritt).
+        repairCut()
     }
 
     func requireAnalysis() throws -> SongAnalysis {

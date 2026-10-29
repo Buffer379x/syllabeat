@@ -173,43 +173,69 @@ enum TranscriptionModel {
     }
 }
 
-/// Wiedergabe des Songs mit Abspielposition für Timeline und Vorschau.
+/// Wiedergabe für Timeline und Vorschau: der Song allein oder, sobald es einen Schnitt gibt, die Vorschau-Komposition
+/// (Bild plus Song). Beim Austausch bleiben Abspielposition und Abspielzustand erhalten.
 @MainActor
 @Observable
 final class Playback {
     private(set) var time: Double = 0
     private(set) var isPlaying = false
     private(set) var isReady = false
-    @ObservationIgnored private var player: AVPlayer?
+    /// Die Komposition mit Bild ist geladen (sonst nur der Song).
+    private(set) var hasVideo = false
+    @ObservationIgnored let player = AVPlayer()
     @ObservationIgnored private var observer: Any?
+    @ObservationIgnored private var songURL: URL?
 
-    func load(_ url: URL?) {
-        if let observer, let player { player.removeTimeObserver(observer) }
-        observer = nil
-        player?.pause()
-        isPlaying = false
-        time = 0
-        guard let url else {
-            player = nil
-            isReady = false
-            return
-        }
-        let player = AVPlayer(url: url)
+    init() {
         player.actionAtItemEnd = .pause
         observer = player.addPeriodicTimeObserver(
             forInterval: CMTime(value: 1, timescale: 30), queue: .main
         ) { [weak self] time in
             MainActor.assumeIsolated {
-                self?.time = time.seconds
-                self?.isPlaying = (self?.player?.rate ?? 0) > 0
+                guard let self, self.player.currentItem != nil else { return }
+                self.time = time.seconds
+                self.isPlaying = self.player.rate > 0
             }
         }
-        self.player = player
-        isReady = true
+    }
+
+    /// Neuer Song: Wiedergabe beginnt wieder am Anfang, ohne Bild bis zur nächsten Komposition.
+    func load(_ url: URL?) {
+        player.pause()
+        isPlaying = false
+        time = 0
+        songURL = url
+        hasVideo = false
+        replace(url.map { AVPlayerItem(url: $0) })
+    }
+
+    /// Vorschau mit Bild; Position und Abspielzustand bleiben.
+    func show(_ composition: AVComposition, video: AVVideoComposition) {
+        let item = AVPlayerItem(asset: composition)
+        item.videoComposition = video
+        hasVideo = true
+        replace(item)
+    }
+
+    /// Zurück zum Song allein (z. B. wenn der Schnitt fehlt oder nicht kompiliert).
+    func showSongOnly() {
+        guard hasVideo else { return }
+        hasVideo = false
+        replace(songURL.map { AVPlayerItem(url: $0) })
+    }
+
+    private func replace(_ item: AVPlayerItem?) {
+        let wasPlaying = player.rate > 0
+        player.replaceCurrentItem(with: item)
+        isReady = item != nil
+        guard item != nil else { return }
+        player.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        if wasPlaying { player.play() }
     }
 
     func toggle() {
-        guard let player else { return }
+        guard isReady else { return }
         if player.rate > 0 {
             player.pause()
             isPlaying = false
@@ -221,7 +247,7 @@ final class Playback {
 
     func seek(to seconds: Double) {
         time = max(0, seconds)
-        player?.seek(
+        player.seek(
             to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
     }
 }

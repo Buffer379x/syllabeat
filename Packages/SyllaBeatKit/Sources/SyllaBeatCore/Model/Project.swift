@@ -64,7 +64,17 @@ public struct Project: Codable, Sendable, Equatable {
 }
 
 public struct TimelineSettings: Codable, Sendable, Equatable {
-    public enum Fit: String, Codable, Sendable { case fill, fit }
+    /// Wie Clips mit anderem Seitenverhältnis ins Format kommen: füllen (Ränder beschnitten) oder einpassen (Balken).
+    public enum Fit: String, Codable, Sendable, CaseIterable {
+        case fill, fit
+
+        public var title: String {
+            switch self {
+            case .fill: "Füllen"
+            case .fit: "Einpassen"
+            }
+        }
+    }
 
     public var fps: Rational
     public var width: Int

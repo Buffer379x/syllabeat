@@ -21,6 +21,11 @@ let usage = """
       song <Audiodatei>          Beats, Tempo, Takte und Abschnitte eines Songs
       songtruth <Ordner>         Songanalyse gegen *.truth.json bewerten
       bench-timeline             Zeichenzeit der Timeline (6 min, 720 Beats) messen
+      bench-cut                  Schnitt-Engine mit 500 Clips und 6-min-Song messen (E10)
+      validate <Projekt>         Schnitt prüfen: Invarianten, Anker, Refrain-Kopien
+      autocut <Projekt> <Song>   Song analysieren und ersten Schnitt erzeugen (Autopilot ohne App)
+      preview <Projekt>          Vorschau-Komposition aufbauen und prüfen
+      bench-preview <Ordner>     Vorschau-Neuaufbau mit 500 Dateien messen (Ordner: tests/Fixtures/media)
       wordtruth <Ordner>         Transkription, Wortzeit-Korrektur und Ausrichtung gegen *.truth.json bewerten
     """
 
@@ -134,6 +139,11 @@ do {
     case ("songtruth", 2): try await evaluateSongs(arguments[1])
     case ("wordtruth", 2): try await evaluateTranscription(arguments[1])
     case ("bench-timeline", 1): await MainActor.run { benchTimeline() }
+    case ("bench-cut", 1): try benchCut()
+    case ("validate", 2): try validateCut(arguments[1])
+    case ("autocut", 3): try await autocut(arguments[1], song: arguments[2])
+    case ("preview", 2): try await previewProject(arguments[1])
+    case ("bench-preview", 2): try await benchPreview(fixtures: URL(fileURLWithPath: arguments[1]))
     case ("search", 3...): try await search(arguments[1], query: arguments.dropFirst(2).joined(separator: " "))
     default:
         FileHandle.standardError.write(Data((usage + "\n").utf8))

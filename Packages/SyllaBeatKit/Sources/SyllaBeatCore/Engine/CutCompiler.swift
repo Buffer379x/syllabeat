@@ -56,31 +56,46 @@ public enum CutCompiler {
         var entries: [FrameTable.Entry] = []
         var previousEnd: Int64 = 0
         for (index, shot) in cut.shots.enumerated() {
-            let number = index + 1
-            let start = FrameMath.frame(atSeconds: shot.start.time, rate: rate)
-            let end = FrameMath.frame(atSeconds: shot.end.time, rate: rate)
-            guard start == previousEnd else { throw CompileError.gap(shot: number) }
-            guard end > start else { throw CompileError.tooShort(shot: number) }
-            guard let clip = clips[shot.clipID] else {
-                throw CompileError.unknownClip(shot: number, clipID: shot.clipID)
+            guard FrameMath.frame(atSeconds: shot.start.time, rate: rate) == previousEnd else {
+                throw CompileError.gap(shot: index + 1)
             }
-            let sourceRate = clip.meta.fps
-            let sourceIn = FrameMath.frame(at: shot.sourceIn, rate: sourceRate)
-            let duration = FrameMath.seconds(ofFrames: end - start, rate: rate)
-            let sourceOut = sourceIn + FrameMath.frame(at: duration, rate: sourceRate)
-            let sourceEnd = FrameMath.seconds(ofFrames: sourceIn, rate: sourceRate) + duration
-            guard sourceIn >= 0, sourceEnd <= clip.meta.availableSeconds + Rational(1, 1_000_000) else {
-                throw CompileError.sourceTooShort(shot: number, clipName: clip.name)
-            }
-            entries.append(
-                FrameTable.Entry(
-                    shotID: shot.id, clipID: shot.clipID, startFrame: start, endFrame: end, sourceInFrame: sourceIn,
-                    sourceOutFrame: sourceOut, sourceFPS: sourceRate))
-            previousEnd = end
+            let entry = try self.entry(shot, number: index + 1, clips: clips, rate: rate)
+            entries.append(entry)
+            previousEnd = entry.endFrame
         }
         guard previousEnd == songEnd else { throw CompileError.wrongEnd }
         return FrameTable(
             fps: rate, width: project.timeline.width, height: project.timeline.height, durationFrames: songEnd,
             entries: entries)
+    }
+
+    /// Einen Shot auf Frames runden und gegen das Quellmaterial prüfen.
+    static func entry(_ shot: Shot, number: Int, clips: [String: Clip], rate: Rational) throws -> FrameTable.Entry {
+        let start = FrameMath.frame(atSeconds: shot.start.time, rate: rate)
+        let end = FrameMath.frame(atSeconds: shot.end.time, rate: rate)
+        guard end > start else { throw CompileError.tooShort(shot: number) }
+        guard let clip = clips[shot.clipID] else { throw CompileError.unknownClip(shot: number, clipID: shot.clipID) }
+        let sourceRate = clip.meta.fps
+        let sourceIn = FrameMath.frame(at: shot.sourceIn, rate: sourceRate)
+        let duration = FrameMath.seconds(ofFrames: end - start, rate: rate)
+        let sourceOut = sourceIn + FrameMath.frame(at: duration, rate: sourceRate)
+        let sourceEnd = FrameMath.seconds(ofFrames: sourceIn, rate: sourceRate) + duration
+        guard sourceIn >= 0, sourceEnd <= clip.meta.availableSeconds + Rational(1, 1_000_000) else {
+            throw CompileError.sourceTooShort(shot: number, clipName: clip.name)
+        }
+        return FrameTable.Entry(
+            shotID: shot.id, clipID: shot.clipID, startFrame: start, endFrame: end, sourceInFrame: sourceIn,
+            sourceOutFrame: sourceOut, sourceFPS: sourceRate)
+    }
+
+    /// Shots, die sich nicht kompilieren lassen (kürzer als ein Frame, Clip fehlt, Material zu kurz).
+    public static func brokenShots(_ project: Project, cut: Cut) -> Set<String> {
+        let clips = Dictionary(project.clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var broken: Set<String> = []
+        for (index, shot) in cut.shots.enumerated()
+        where (try? entry(shot, number: index + 1, clips: clips, rate: project.timeline.fps)) == nil {
+            broken.insert(shot.id)
+        }
+        return broken
     }
 }

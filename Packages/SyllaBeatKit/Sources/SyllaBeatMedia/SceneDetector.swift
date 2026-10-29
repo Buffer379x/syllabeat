@@ -157,17 +157,17 @@ public enum SceneDetector {
                 index += 1
             }
         }
-        var ranges: [(Double, Double)] = []
+        var ranges: [(Double, Double, Bool)] = []
         for (start, end) in zip(bounds, bounds.dropFirst()) {
             let length = end - start
             let count = length > maximumLength ? Int((length / maximumLength).rounded(.up)) : 1
             let part = length / Double(count)
             for i in 0..<count {
-                ranges.append((start + Double(i) * part, i == count - 1 ? end : start + Double(i + 1) * part))
+                ranges.append((start + Double(i) * part, i == count - 1 ? end : start + Double(i + 1) * part, i > 0))
             }
         }
         return ranges.enumerated().map { number, range in
-            ClipScene(id: "\(clipID)-s\(number + 1)", start: range.0, end: range.1)
+            ClipScene(id: "\(clipID)-s\(number + 1)", start: range.0, end: range.1, continuesPrevious: range.2)
         }
     }
 

@@ -9,14 +9,18 @@ struct ProjectWindow: View {
     @Environment(AppServices.self) private var services
     @State private var media: MediaController?
     @State private var song: SongController?
+    @State private var cut: CutController?
 
     var body: some View {
-        if let media, let song {
-            ProjectWorkspace(document: document, media: media, song: song)
+        if let media, let song, let cut {
+            ProjectWorkspace(document: document, media: media, song: song, cut: cut)
         } else {
             Color.clear.onAppear {
-                media = MediaController(document: document, services: services)
-                song = SongController(document: document, services: services)
+                let media = MediaController(document: document, services: services)
+                let song = SongController(document: document, services: services)
+                self.media = media
+                self.song = song
+                cut = CutController(document: document, services: services, media: media, playback: song.playback)
             }
         }
     }
@@ -27,6 +31,7 @@ struct ProjectWorkspace: View {
     @ObservedObject var document: ProjectDocument
     var media: MediaController
     var song: SongController
+    var cut: CutController
     @Environment(\.undoManager) private var undoManager
     @Environment(\.documentConfiguration) private var configuration
     @State private var selectedClipID: String?
@@ -54,18 +59,18 @@ struct ProjectWorkspace: View {
                 HSplitView {
                     LibraryPane(project: project, media: media, selection: $selectedClipID)
                         .frame(minWidth: 220, idealWidth: 270, maxWidth: 460)
-                    PreviewPane(project: project, playback: song.playback)
+                    PreviewPane(project: project, playback: song.playback, cut: cut)
                         .frame(minWidth: 380, maxWidth: .infinity)
                     if showsInspector {
                         InspectorPane(
-                            document: document, media: media, song: song, selectedClipID: selectedClipID,
+                            document: document, media: media, song: song, cut: cut, selectedClipID: selectedClipID,
                             errorMessage: $errorMessage
                         )
                         .frame(minWidth: 250, idealWidth: 290, maxWidth: 460)
                     }
                 }
                 .frame(minHeight: 320, maxHeight: .infinity)
-                TimelinePane(project: project, song: song) { command in
+                TimelinePane(project: project, song: song, cut: cut) { command in
                     errorMessage = document.run(command, undoManager: undoManager)
                 }
                 .frame(
@@ -85,12 +90,14 @@ struct ProjectWorkspace: View {
             }
         )
         .focusedSceneValue(\.projectMedia, media)
+        .focusedSceneValue(\.projectCut, cut)
         .onDeleteCommand(perform: removeSelectedClip)
         .toolbar { toolbar }
         .navigationSubtitle(subtitle)
         .task(id: configuration?.fileURL) { createLegacyBackupIfNeeded() }
         .task {
             media.undoManager = undoManager
+            cut.undoManager = undoManager
             media.start()
             song.songChanged()
             // Automatisierung (UI-Tests): `-SBImportPaths "<Pfad>|<Pfad>"` importiert beim Öffnen.
@@ -98,15 +105,55 @@ struct ProjectWorkspace: View {
                 media.importItems(paths.split(separator: "|").map { URL(fileURLWithPath: String($0)) })
             }
         }
-        .onChange(of: undoManager) { _, manager in media.undoManager = manager }
+        .onChange(of: undoManager) { _, manager in
+            media.undoManager = manager
+            cut.undoManager = manager
+        }
         .onChange(of: project.song) { _, _ in song.songChanged() }
+        // Autopilot: erster Schnitt, sobald Song und Clips fertig analysiert sind.
+        .onChange(of: autopilotSignal, initial: true) { _, _ in cut.autopilotIfReady() }
+        .onChange(of: previewSignal, initial: true) { _, _ in cut.updatePreview() }
+        .task(id: textSignal) { await cut.refreshTextScores() }
+        // Clip oder Einstellung: Der Inspektor zeigt immer nur eines davon.
+        .onChange(of: selectedClipID) { _, id in if id != nil { cut.selection = [] } }
+        .onChange(of: cut.selection) { _, ids in if !ids.isEmpty { selectedClipID = nil } }
+        .onChange(of: project.cut) { old, new in cut.remapSelection(from: old, to: new) }
         .alert(
-            "Aktion nicht möglich", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })
+            "Aktion nicht möglich",
+            isPresented: Binding(
+                get: { errorMessage != nil || cut.errorMessage != nil },
+                set: { _ in
+                    errorMessage = nil
+                    cut.errorMessage = nil
+                })
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "")
+            Text(errorMessage ?? cut.errorMessage ?? "")
         }
+    }
+
+    private var autopilotSignal: String {
+        "\(project.analysis != nil)#\(project.clips.count)#\(project.clips.filter { !$0.scenes.isEmpty }.count)#"
+            + "\(media.busyClips.isEmpty)#\(media.preparingSearch)"
+    }
+
+    private struct PreviewSignal: Equatable {
+        var cut: Cut?
+        var timeline: TimelineSettings
+        var paths: [String]
+        var song: MediaRef?
+        var duration: Double?
+    }
+
+    private var previewSignal: PreviewSignal {
+        PreviewSignal(
+            cut: project.cut, timeline: project.timeline, paths: project.clips.map(\.media.path), song: project.song,
+            duration: project.analysis?.duration)
+    }
+
+    private var textSignal: String {
+        "\(media.sceneIndex?.count ?? 0)#\(project.analysis?.lines.map(\.text).joined(separator: "|") ?? "")"
     }
 
     private var subtitle: String {
@@ -118,6 +165,9 @@ struct ProjectWorkspace: View {
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .principal) {
             StatusChips(project: project)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            CutToolbar(project: project, cut: cut)
         }
         ToolbarItem(placement: .primaryAction) {
             JobCenterButton()
@@ -192,4 +242,5 @@ struct WindowAccessor: NSViewRepresentable {
 
 extension FocusedValues {
     @Entry var projectMedia: MediaController?
+    @Entry var projectCut: CutController?
 }

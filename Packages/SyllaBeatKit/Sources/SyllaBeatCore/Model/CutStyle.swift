@@ -32,6 +32,23 @@ public struct CutStyle: Codable, Sendable, Equatable {
             }
         }
 
+        public var minimumDuration: Double {
+            switch self {
+            case .calm: 1.5
+            case .balanced: 0.6
+            case .energetic: 0.4
+            case .hectic: 0.2
+            }
+        }
+
+        public var followEnergy: Double {
+            switch self {
+            case .calm: 0.2
+            case .balanced: 0.5
+            case .energetic, .hectic: 0.9
+            }
+        }
+
         /// Preset, das am besten zu einer Strophenlänge passt.
         public static func nearest(verseBeats: Int) -> Preset {
             switch verseBeats {
@@ -47,12 +64,37 @@ public struct CutStyle: Codable, Sendable, Equatable {
         case low, medium, high
     }
 
+    /// Wie Wiederholungen (Refrains) geschnitten werden.
+    public enum RefrainMode: String, Codable, Sendable, CaseIterable {
+        /// Exakte Kopie der Vorlage.
+        case identical
+        /// Gleiche Clips, andere Ausschnitte.
+        case sameClips
+        /// Unabhängig neu geschnitten.
+        case free
+
+        public var title: String {
+            switch self {
+            case .identical: "Identisch"
+            case .sameClips: "Gleiche Clips, andere Ausschnitte"
+            case .free: "Frei"
+            }
+        }
+    }
+
     public var preset: Preset
     public var verseBeats: Int
     public var chorusBeats: Int
     public var variation: Variation
     public var chorusFaster: Bool
     public var seed: UInt64
+    public var refrainMode: RefrainMode
+    /// Kürzeste Einstellung in Sekunden.
+    public var minimumDuration: Double
+    /// Wie stark die Songenergie die Schnittdichte bestimmt, 0…1.
+    public var followEnergy: Double
+    /// Schnitte auf Wortanfänge legen, wenn ein Wort nahe am Beat beginnt.
+    public var alignToWords: Bool
 
     public init(preset: Preset = .balanced, seed: UInt64 = 1) {
         self.preset = preset
@@ -61,6 +103,17 @@ public struct CutStyle: Codable, Sendable, Equatable {
         self.variation = preset.variation
         self.chorusFaster = true
         self.seed = seed
+        self.refrainMode = .identical
+        self.minimumDuration = preset.minimumDuration
+        self.followEnergy = preset.followEnergy
+        self.alignToWords = preset != .calm
+    }
+
+    /// Übernimmt die Werte eines Presets, behält Seed und Refrain-Modus.
+    public func applying(_ preset: Preset) -> CutStyle {
+        var style = CutStyle(preset: preset, seed: seed)
+        style.refrainMode = refrainMode
+        return style
     }
 
     public init(from decoder: any Decoder) throws {
@@ -71,5 +124,9 @@ public struct CutStyle: Codable, Sendable, Equatable {
         variation = try c.decode(.variation, default: preset.variation)
         chorusFaster = try c.decode(.chorusFaster, default: true)
         seed = try c.decode(.seed, default: 1)
+        refrainMode = try c.decode(.refrainMode, default: .identical)
+        minimumDuration = try c.decode(.minimumDuration, default: preset.minimumDuration)
+        followEnergy = try c.decode(.followEnergy, default: preset.followEnergy)
+        alignToWords = try c.decode(.alignToWords, default: preset != .calm)
     }
 }

@@ -8,10 +8,13 @@ import SyllaBeatUI
 struct TimelinePane: View {
     var project: Project
     var song: SongController
+    var cut: CutController
     var run: (any EditCommand) -> Void
     /// Pixel je Sekunde; `nil` heißt: ganzer Song passt in die Breite.
     @State private var zoom: Double?
     @State private var width: CGFloat = 800
+    /// Vorschaubilder der Bildspur nach Pfad im Zwischenspeicher.
+    @State private var thumbnails: [String: NSImage] = [:]
 
     private static let headerWidth: CGFloat = 92
 
@@ -36,9 +39,11 @@ struct TimelinePane: View {
                         TimelineScrollView(
                             content: content(analysis), pixelsPerSecond: pixelsPerSecond(analysis),
                             playhead: song.playback.time, following: song.playback.isPlaying,
+                            selection: cut.selection, thumbnails: thumbnails,
                             actions: TimelineActions(
                                 seek: { song.playback.seek(to: $0) }, run: run,
-                                zoom: { value, _ in zoom = clamp(value, analysis) })
+                                zoom: { value, _ in zoom = clamp(value, analysis) },
+                                select: { cut.selection = $0 })
                         )
                         .onAppear { width = geometry.size.width }
                         .onChange(of: geometry.size.width) { _, new in width = new }
@@ -52,6 +57,23 @@ struct TimelinePane: View {
         .background(.background)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline")
+        .task(id: thumbnailPaths) { await loadThumbnails() }
+    }
+
+    private var thumbnailPaths: [String] {
+        Array(Set((project.cut?.shots ?? []).compactMap { thumbnailURL($0)?.path })).sorted()
+    }
+
+    private func thumbnailURL(_ shot: Shot) -> URL? {
+        guard let clip = project.clip(withID: shot.clipID) else { return nil }
+        return clip.thumbnailURL(scene: clip.scenes.first { $0.id == shot.sceneID })
+    }
+
+    private func loadThumbnails() async {
+        for path in thumbnailPaths where thumbnails[path] == nil {
+            guard !Task.isCancelled else { return }
+            if let image = await ThumbnailStore.shared.image(URL(fileURLWithPath: path)) { thumbnails[path] = image }
+        }
     }
 
     private var placeholder: some View {
@@ -135,7 +157,10 @@ struct TimelinePane: View {
 
     private func content(_ analysis: SongAnalysis) -> TimelineContent {
         let shots = (project.cut?.shots ?? []).map { shot in
-            (start: shot.start.time, end: shot.end.time, name: project.clip(withID: shot.clipID)?.name ?? shot.clipID)
+            TimelineShot(
+                id: shot.id, start: shot.start.time, end: shot.end.time,
+                name: project.clip(withID: shot.clipID)?.name ?? shot.clipID, locked: shot.locked,
+                copied: shot.reasons?.copiedFrom != nil, thumbnailKey: thumbnailURL(shot)?.path)
         }
         return TimelineContent(
             duration: analysis.duration, beats: analysis.beats, meter: analysis.meter, sections: analysis.sections,
@@ -149,6 +174,8 @@ struct TimelineScrollView: NSViewRepresentable {
     var pixelsPerSecond: Double
     var playhead: Double
     var following: Bool
+    var selection: Set<String>
+    var thumbnails: [String: NSImage]
     var actions: TimelineActions
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -171,6 +198,8 @@ struct TimelineScrollView: NSViewRepresentable {
         canvas.content = content
         canvas.pixelsPerSecond = pixelsPerSecond
         canvas.playhead = playhead
+        canvas.selectedShotIDs = selection
+        canvas.thumbnails = thumbnails
         let width = max(scroll.contentSize.width, CGFloat(content.duration * pixelsPerSecond))
         if canvas.frame.size != NSSize(width: width, height: TimelineCanvas.totalHeight) {
             canvas.frame = NSRect(x: 0, y: 0, width: width, height: TimelineCanvas.totalHeight)

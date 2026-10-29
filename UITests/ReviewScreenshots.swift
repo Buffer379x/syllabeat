@@ -124,3 +124,75 @@ final class SongReviewScreenshots: XCTestCase {
         add(attachment)
     }
 }
+
+/// Abnahme M4 (E1, E3): leeres Projekt, Song und Clips per Import, Autopilot bis zum ersten Schnitt; danach Shot
+/// tauschen, fixieren, neu würfeln. Läuft nur mit `SB_REVIEW_CUT=<Projekt>` und `SB_REVIEW_IMPORT=<Ordner>`.
+final class CutReviewScreenshots: XCTestCase {
+    override func setUpWithError() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SB_REVIEW_CUT"] != nil, "nur für Abnahme-Fotos")
+    }
+
+    @MainActor
+    func testFirstCutAndShotSwap() throws {
+        let environment = ProcessInfo.processInfo.environment
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-SBOpenDocument", environment["SB_REVIEW_CUT"]!, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages",
+            "(de)", "-AppleLocale", "de_DE", "-SBImportPaths", environment["SB_REVIEW_IMPORT"]!,
+        ]
+        app.launch()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 15))
+        let start = Date()
+        let canvas = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH 'Timeline:' AND NOT (label CONTAINS ' 0 Einstellungen')")
+        ).firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 600), "kein erster Schnitt")
+        let video = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Vorschau des Schnitts'"))
+            .firstMatch
+        XCTAssertTrue(video.waitForExistence(timeout: 30), "Vorschau ohne Bild")
+        print("SB_REVIEW Erster Schnitt mit Vorschau: \(Int(Date().timeIntervalSince(start))) s")
+        let alert = app.sheets.firstMatch
+        XCTAssertFalse(alert.exists, "Fehlermeldung sichtbar")
+        sleep(2)
+        attach(window.screenshot(), "Erster Schnitt")
+
+        // Abspielen ab einem Refrain (Drittel des Songs).
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.36, dy: 0.5)).click()
+        app.typeKey(" ", modifierFlags: [])
+        sleep(3)
+        attach(window.screenshot(), "Wiedergabe")
+        app.typeKey(" ", modifierFlags: [])
+
+        // E3: Shot wählen, Begründung, Alternative übernehmen (fixiert), neu würfeln.
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.87)).click()
+        let reasons = app.descendants(matching: .any).matching(identifier: "shot.reasons").firstMatch
+        XCTAssertTrue(reasons.waitForExistence(timeout: 5))
+        sleep(1)
+        attach(window.screenshot(), "Warum dieser Clip")
+        let alternative = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Alternative '")).firstMatch
+        XCTAssertTrue(alternative.waitForExistence(timeout: 5))
+        alternative.click()
+        sleep(1)
+        attach(window.screenshot(), "Alternative gewählt")
+        app.typeKey("r", modifierFlags: .command)
+        sleep(2)
+        attach(window.screenshot(), "Neu gewürfelt")
+
+        // Stil wechseln: Hektisch.
+        app.menuButtons["cut.style"].click()
+        app.menuItems["Hektisch"].click()
+        sleep(2)
+        attach(window.screenshot(), "Stil hektisch")
+        app.typeKey("s", modifierFlags: .command)
+        sleep(1)
+    }
+
+    @MainActor
+    private func attach(_ screenshot: XCUIScreenshot, _ name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}

@@ -164,11 +164,14 @@ public struct ClipScene: Codable, Sendable, Equatable, Identifiable {
     public var description: String
     /// Merkmale aus Apple Vision und der Szenenerkennung; `nil`, solange nicht analysiert.
     public var features: SceneFeatures?
+    /// Teil einer langen Einstellung (5-s-Teilung) ohne echten Schnitt zum Vorgänger: Ein Shot darf hinüberreichen.
+    public var continuesPrevious: Bool
 
     public init(
         id: String, start: Double, end: Double, keyframeTime: Double? = nil, description: String = "",
-        features: SceneFeatures? = nil
+        features: SceneFeatures? = nil, continuesPrevious: Bool = false
     ) {
+        self.continuesPrevious = continuesPrevious
         self.id = id
         self.start = start
         self.end = end
@@ -187,6 +190,7 @@ public struct ClipScene: Codable, Sendable, Equatable, Identifiable {
         keyframeTime = try c.decodeIfPresent(Double.self, forKey: .keyframeTime)
         description = try c.decode(.description, default: "")
         features = try c.decodeIfPresent(SceneFeatures.self, forKey: .features)
+        continuesPrevious = try c.decode(.continuesPrevious, default: false)
     }
 }
 

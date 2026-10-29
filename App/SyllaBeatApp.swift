@@ -13,7 +13,10 @@ struct SyllaBeatApp: App {
                 .environment(services)
         }
         .defaultSize(width: 1280, height: 820)
-        .commands { MediaCommands() }
+        .commands {
+            MediaCommands()
+            CutCommands()
+        }
 
         Settings {
             SettingsView()
@@ -44,6 +47,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// Menüeinträge für das aktive Projektfenster.
+/// Menü „Schnitt“: wirkt auf das aktive Dokumentfenster.
+struct CutCommands: Commands {
+    @FocusedValue(\.projectCut) private var cut
+
+    var body: some Commands {
+        CommandMenu("Schnitt") {
+            Button("Neu würfeln") { cut?.reroll() }
+                .keyboardShortcut("r", modifiers: .command)
+                .disabled(!(cut?.canCut ?? false))
+            Button("Auswahl neu schneiden") { cut?.recutSelection() }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(cut?.selection.isEmpty ?? true)
+            Button("Fixieren / lösen") { cut?.toggleLockSelection() }
+                .keyboardShortcut("l", modifiers: [])
+                .disabled(cut?.selection.isEmpty ?? true)
+            Divider()
+            Button("Drei Varianten erzeugen") { cut?.createVariants() }
+                .disabled(!(cut?.canCut ?? false))
+        }
+    }
+}
+
 struct MediaCommands: Commands {
     @FocusedValue(\.projectMedia) private var media
 

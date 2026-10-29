@@ -3,11 +3,12 @@ import SwiftUI
 import SyllaBeatCore
 import SyllaBeatUI
 
-/// Inspektor: zeigt den ausgewählten Clip oder, ohne Auswahl, das Projekt.
+/// Inspektor: zeigt die ausgewählte Einstellung, den ausgewählten Clip oder, ohne Auswahl, das Projekt.
 struct InspectorPane: View {
     @ObservedObject var document: ProjectDocument
     var media: MediaController
     var song: SongController
+    var cut: CutController
     var selectedClipID: String?
     @Binding var errorMessage: String?
     @Environment(\.undoManager) private var undoManager
@@ -15,7 +16,9 @@ struct InspectorPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if let id = selectedClipID, let clip = document.project.clip(withID: id) {
+                if let shot = cut.selectedShot {
+                    ShotInspector(shot: shot, project: document.project, media: media, cut: cut)
+                } else if let id = selectedClipID, let clip = document.project.clip(withID: id) {
                     ClipInspector(clip: clip, project: document.project, media: media) { command in
                         errorMessage = document.run(command, undoManager: undoManager)
                     }
@@ -27,7 +30,7 @@ struct InspectorPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         // Neue Auswahl beginnt oben statt an der alten Scrollposition.
-        .id(selectedClipID ?? "projekt")
+        .id(cut.selectedShot?.id ?? selectedClipID ?? "projekt")
         .background(.background)
         .accessibilityIdentifier("inspector")
     }
@@ -243,6 +246,7 @@ private struct ProjectInspector: View {
         InspectorSection("Timeline") {
             Fact("Format", "\(project.timeline.width)×\(project.timeline.height)")
             Fact("Bildrate", "\(Format.fps(project.timeline.fps)) fps")
+            Fact("Bildanpassung", project.timeline.fit.title)
         }
         InspectorSection("Song") {
             if let file = project.song { Fact("Datei", file.fileName) }

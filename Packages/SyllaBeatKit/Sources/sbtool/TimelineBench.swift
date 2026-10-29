@@ -27,7 +27,12 @@ func benchTimeline() {
     let lines = stride(from: 0, to: 600, by: 6).map { i in
         LyricLine(id: "l\(i)", text: "Zeile \(i / 6)", start: words[i].start, end: words[min(599, i + 5)].end)
     }
-    let shots = (0..<300).map { i in (start: Double(i) * 1.2, end: Double(i + 1) * 1.2, name: "clip_\(i % 40).mov") }
+    let shots = (0..<300).map { (i: Int) -> TimelineShot in
+        let start = Double(i) * 1.2
+        return TimelineShot(
+            id: "shot-\(i + 1)", start: start, end: start + 1.2, name: "clip_\(i % 40).mov", locked: i % 10 == 0,
+            copied: i % 7 == 0)
+    }
     var samples = [Float](repeating: 0, count: Int(duration * 22_050))
     for i in samples.indices { samples[i] = Float(sin(Double(i) * 0.05) * 0.5 * sin(Double(i) / 9000)) }
     let waveform = Waveform(MonoAudio(samples: samples, sampleRate: 22_050))

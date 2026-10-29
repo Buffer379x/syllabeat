@@ -34,11 +34,14 @@ public struct Shot: Codable, Sendable, Equatable, Identifiable {
     public var sourceIn: Rational
     /// Fixierte Shots bleiben bei jedem Neuberechnen unverändert.
     public var locked: Bool
+    /// „Warum dieser Clip?“: Anteile der Bewertung und die besten Alternativen.
+    public var reasons: ShotReasons?
 
     public init(
         id: String, start: CutPoint, end: CutPoint, clipID: String, sceneID: String? = nil, sourceIn: Rational,
-        locked: Bool = false
+        locked: Bool = false, reasons: ShotReasons? = nil
     ) {
+        self.reasons = reasons
         self.id = id
         self.start = start
         self.end = end
@@ -57,6 +60,40 @@ public struct Shot: Codable, Sendable, Equatable, Identifiable {
         sceneID = try c.decodeIfPresent(String.self, forKey: .sceneID)
         sourceIn = try c.decode(Rational.self, forKey: .sourceIn)
         locked = try c.decode(.locked, default: false)
+        reasons = try c.decodeIfPresent(ShotReasons.self, forKey: .reasons)
+    }
+
+    public var duration: Double { end.time - start.time }
+}
+
+/// Bewertung eines Shots, für den Inspektor.
+public struct ShotReasons: Codable, Sendable, Equatable {
+    public struct Alternative: Codable, Sendable, Equatable {
+        public var clipID: String
+        public var sceneID: String
+        public var sourceIn: Rational
+        public var score: Double
+
+        public init(clipID: String, sceneID: String, sourceIn: Rational, score: Double) {
+            self.clipID = clipID
+            self.sceneID = sceneID
+            self.sourceIn = sourceIn
+            self.score = score
+        }
+    }
+
+    /// Anteile je Kriterium (Schlüssel siehe `CutEngine.Component`), Summe = `total`.
+    public var components: [String: Double]
+    public var total: Double
+    public var alternatives: [Alternative]
+    /// Kopie aus der Vorlage einer Wiederholung (Refrain identisch).
+    public var copiedFrom: String?
+
+    public init(components: [String: Double], total: Double, alternatives: [Alternative], copiedFrom: String? = nil) {
+        self.components = components
+        self.total = total
+        self.alternatives = alternatives
+        self.copiedFrom = copiedFrom
     }
 }
 

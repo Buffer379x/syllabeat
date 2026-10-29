@@ -10,6 +10,7 @@ public struct SceneIndex: Sendable {
 
     struct Entry: Sendable {
         var clipID: String
+        var sceneID: String
         var sceneStart: Double
         var vector: [Float]
     }
@@ -24,7 +25,7 @@ public struct SceneIndex: Sendable {
             else { continue }
             for scene in clip.scenes {
                 if let vector = file.vectors[MediaCache.key(forSceneStart: scene.start)] {
-                    entries.append(Entry(clipID: clip.id, sceneStart: scene.start, vector: vector))
+                    entries.append(Entry(clipID: clip.id, sceneID: scene.id, sceneStart: scene.start, vector: vector))
                 }
             }
         }
@@ -45,6 +46,17 @@ public struct SceneIndex: Sendable {
             }
         }
         return best.values.sorted { $0.score > $1.score }
+    }
+
+    /// Ähnlichkeit jeder Szene (nach Szenen-ID) zu einem Text, für die Schnitt-Engine.
+    public func similarities(query: [Float]) -> [String: Float] {
+        var result: [String: Float] = [:]
+        for entry in entries where entry.vector.count == query.count {
+            var score: Float = 0
+            for i in query.indices { score += query[i] * entry.vector[i] }
+            result[entry.sceneID] = score
+        }
+        return result
     }
 
     /// Clip-IDs, deren Szenen noch kein Embedding haben.

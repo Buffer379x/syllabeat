@@ -2,6 +2,32 @@ import AppKit
 import SyllaBeatAudio
 import SyllaBeatCore
 
+/// Eine Einstellung in der Bildspur.
+public struct TimelineShot: Equatable, Sendable {
+    public var id: String
+    public var start: Double
+    public var end: Double
+    public var name: String
+    public var locked: Bool
+    /// Wiederholung einer Vorlage (Refrain identisch).
+    public var copied: Bool
+    /// Schlüssel für `TimelineCanvas.thumbnails`.
+    public var thumbnailKey: String?
+
+    public init(
+        id: String, start: Double, end: Double, name: String, locked: Bool = false, copied: Bool = false,
+        thumbnailKey: String? = nil
+    ) {
+        self.id = id
+        self.start = start
+        self.end = end
+        self.name = name
+        self.locked = locked
+        self.copied = copied
+        self.thumbnailKey = thumbnailKey
+    }
+}
+
 /// Daten, die die Timeline zeichnet (Werttyp; jede Änderung zeichnet neu).
 public struct TimelineContent: Equatable {
     public var duration: Double
@@ -10,12 +36,12 @@ public struct TimelineContent: Equatable {
     public var sections: [SongSection]
     public var words: [Word]
     public var lines: [LyricLine]
-    public var shots: [(start: Double, end: Double, name: String)]
+    public var shots: [TimelineShot]
     public var waveform: Waveform?
 
     public init(
         duration: Double, beats: [Beat], meter: Int, sections: [SongSection], words: [Word], lines: [LyricLine] = [],
-        shots: [(start: Double, end: Double, name: String)], waveform: Waveform? = nil
+        shots: [TimelineShot], waveform: Waveform? = nil
     ) {
         self.duration = duration
         self.beats = beats
@@ -27,11 +53,6 @@ public struct TimelineContent: Equatable {
         self.waveform = waveform
     }
 
-    public static func == (a: TimelineContent, b: TimelineContent) -> Bool {
-        a.duration == b.duration && a.beats == b.beats && a.meter == b.meter && a.sections == b.sections
-            && a.words == b.words && a.lines == b.lines && a.waveform == b.waveform && a.shots.count == b.shots.count
-            && zip(a.shots, b.shots).allSatisfy { $0.start == $1.start && $0.end == $1.end && $0.name == $1.name }
-    }
 }
 
 /// Aktionen der Timeline; das Fenster setzt sie in Befehle mit Undo um.
@@ -39,14 +60,17 @@ public struct TimelineActions {
     public var seek: (Double) -> Void
     public var run: (any EditCommand) -> Void
     public var zoom: (Double, Double) -> Void
+    /// Auswahl in der Bildspur hat sich geändert.
+    public var select: (Set<String>) -> Void
 
     public init(
         seek: @escaping (Double) -> Void = { _ in }, run: @escaping (any EditCommand) -> Void = { _ in },
-        zoom: @escaping (Double, Double) -> Void = { _, _ in }
+        zoom: @escaping (Double, Double) -> Void = { _, _ in }, select: @escaping (Set<String>) -> Void = { _ in }
     ) {
         self.seek = seek
         self.run = run
         self.zoom = zoom
+        self.select = select
     }
 }
 
@@ -91,6 +115,16 @@ public final class TimelineCanvas: NSView {
         }
     }
     public var actions = TimelineActions()
+    /// Ausgewählte Einstellungen (Bildspur).
+    public var selectedShotIDs: Set<String> = [] {
+        didSet { if selectedShotIDs != oldValue { needsDisplay = true } }
+    }
+    /// Vorschaubilder je `TimelineShot.thumbnailKey`.
+    public var thumbnails: [String: NSImage] = [:] {
+        didSet { if thumbnails.count != oldValue.count { needsDisplay = true } }
+    }
+    /// Anker für ⇧-Klick (Bereichsauswahl).
+    private var selectionAnchor: Int?
 
     private var draggedBoundary: (sectionID: String, time: Double)?
     private var editor: NSTextField?
@@ -269,15 +303,49 @@ public final class TimelineCanvas: NSView {
                 color: .tertiaryLabelColor)
             return
         }
+        let lock = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: "Fixiert")
+        let copy = NSImage(systemSymbolName: "repeat", accessibilityDescription: "Wiederholung")
         for (index, shot) in content.shots.enumerated()
         where shot.end >= visible.lowerBound && shot.start <= visible.upperBound {
             let box = NSRect(
                 x: x(shot.start) + 0.5, y: area.minY + 4, width: max(1, x(shot.end) - x(shot.start) - 1),
                 height: area.height - 8)
+            let selected = selectedShotIDs.contains(shot.id)
+            let path = NSBezierPath(roundedRect: box, xRadius: 2, yRadius: 2)
             NSColor.controlAccentColor.withAlphaComponent(index.isMultiple(of: 2) ? 0.45 : 0.28).setFill()
-            NSBezierPath(roundedRect: box, xRadius: 2, yRadius: 2).fill()
+            path.fill()
+            var textBox = box.insetBy(dx: 4, dy: 0)
+            if box.width > 24, let key = shot.thumbnailKey, let image = thumbnails[key] {
+                // Vorschaubild links im Shot, 16:9, auf die Shotbreite beschnitten.
+                let thumb = NSRect(
+                    x: box.minX, y: box.minY, width: min(box.width, box.height * 16 / 9), height: box.height)
+                NSGraphicsContext.saveGraphicsState()
+                path.addClip()
+                image.draw(
+                    in: thumb, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                NSGraphicsContext.restoreGraphicsState()
+                textBox.origin.x = thumb.maxX + 4
+                textBox.size.width = box.maxX - thumb.maxX - 8
+            }
             if box.width > 30 {
-                drawText(shot.name, in: box.insetBy(dx: 4, dy: 0), font: .systemFont(ofSize: 10), color: .labelColor)
+                drawText(shot.name, in: textBox, font: .systemFont(ofSize: 10), color: .labelColor)
+            }
+            var badgeX = box.maxX - 13
+            for (flag, symbol) in [(shot.locked, lock), (shot.copied, copy)] where flag && box.width > 18 {
+                if let symbol {
+                    let badge = NSRect(x: badgeX, y: box.minY + 2, width: 11, height: 11)
+                    NSColor.windowBackgroundColor.withAlphaComponent(0.8).setFill()
+                    NSBezierPath(ovalIn: badge.insetBy(dx: -1.5, dy: -1.5)).fill()
+                    symbol.draw(
+                        in: badge, from: .zero, operation: .sourceOver, fraction: 0.9, respectFlipped: true, hints: nil)
+                }
+                badgeX -= 14
+            }
+            if selected {
+                NSColor.controlAccentColor.setStroke()
+                let outline = NSBezierPath(roundedRect: box.insetBy(dx: 1, dy: 1), xRadius: 2, yRadius: 2)
+                outline.lineWidth = 2
+                outline.stroke()
             }
         }
     }
@@ -342,7 +410,49 @@ public final class TimelineCanvas: NSView {
             draggedBoundary = (section.id, section.start)
             return
         }
+        if track(at: point) == .image {
+            selectShot(at: point, modifiers: event.modifierFlags)
+        }
         actions.seek(max(0, min(content.duration, time(point.x))))
+    }
+
+    private func shotIndex(at point: NSPoint) -> Int? {
+        let t = time(point.x)
+        return content.shots.firstIndex { $0.start <= t && t < $0.end }
+    }
+
+    /// Klick wählt aus, ⌘ schaltet um, ⇧ wählt den Bereich bis zum Anker.
+    private func selectShot(at point: NSPoint, modifiers: NSEvent.ModifierFlags) {
+        guard let index = shotIndex(at: point) else {
+            actions.select([])
+            return
+        }
+        let id = content.shots[index].id
+        if modifiers.contains(.command) {
+            actions.select(selectedShotIDs.symmetricDifference([id]))
+            selectionAnchor = index
+        } else if modifiers.contains(.shift), let anchor = selectionAnchor, anchor < content.shots.count {
+            actions.select(Set(content.shots[min(anchor, index)...max(anchor, index)].map(\.id)))
+        } else {
+            actions.select([id])
+            selectionAnchor = index
+        }
+    }
+
+    /// `L` fixiert die Auswahl bzw. löst sie (wie im Inspektor).
+    override public func keyDown(with event: NSEvent) {
+        let plain = event.modifierFlags.intersection([.command, .option, .control]).isEmpty
+        if plain, event.charactersIgnoringModifiers?.lowercased() == "l", !selectedShotIDs.isEmpty {
+            toggleLock(selectedShotIDs)
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    private func toggleLock(_ ids: Set<String>) {
+        let shots = content.shots.filter { ids.contains($0.id) }
+        let lock = !shots.allSatisfy(\.locked)
+        actions.run(SetShotsLocked(shotIDs: ids, locked: lock))
     }
 
     override public func mouseDragged(with event: NSEvent) {
@@ -432,6 +542,20 @@ public final class TimelineCanvas: NSView {
         case .text:
             guard let word = word(at: point) else { return nil }
             menu.addItem(item("„\(word.text)“ korrigieren …") { [weak self] in self?.beginEditing(word) })
+        case .image:
+            guard let index = shotIndex(at: point) else { return nil }
+            let shot = content.shots[index]
+            // Rechtsklick außerhalb der Auswahl wählt den Shot aus.
+            let ids = selectedShotIDs.contains(shot.id) ? selectedShotIDs : [shot.id]
+            if !selectedShotIDs.contains(shot.id) { actions.select(ids) }
+            let all = content.shots.filter { ids.contains($0.id) }
+            let locked = all.allSatisfy(\.locked)
+            menu.addItem(
+                item(locked ? "Fixierung lösen" : "Fixieren") { [weak self] in self?.toggleLock(ids) })
+            menu.addItem(
+                item(ids.count == 1 ? "Neu schneiden" : "Auswahl neu schneiden (\(ids.count))") { [weak self] in
+                    self?.actions.run(RecutShots(shotIDs: ids))
+                })
         default:
             return nil
         }
