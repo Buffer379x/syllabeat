@@ -46,8 +46,15 @@ public enum MediaProbe {
         return Rational(Int64((nominal * 1000).rounded()), 1000)
     }
 
+    /// Schrittprotokoll auf stderr, wenn `SYLLABEAT_TRACE` gesetzt ist (Fehlersuche auf fremden Maschinen).
+    static func trace(_ step: String) {
+        guard ProcessInfo.processInfo.environment["SYLLABEAT_TRACE"] != nil else { return }
+        FileHandle.standardError.write(Data("[probe] \(step)\n".utf8))
+    }
+
     public static func read(_ url: URL) async throws -> ClipMetadata {
         let name = url.lastPathComponent
+        trace("start \(name)")
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
         let playable: Bool
         do {
@@ -56,19 +63,24 @@ public enum MediaProbe {
             throw MediaError.unsupported(name)
         }
         guard playable else { throw MediaError.unsupported(name) }
+        trace("isReadable ok")
         let duration = try await asset.load(.duration).seconds
         guard let track = try await asset.loadTracks(withMediaType: .video).first else {
             throw MediaError.noVideo(name)
         }
+        trace("videoTrack ok")
         let (nominal, minFrame, size, transform, formats) = try await track.load(
             .nominalFrameRate, .minFrameDuration, .naturalSize, .preferredTransform, .formatDescriptions)
         let timescale = try await track.load(.naturalTimeScale)
+        trace("trackProperties ok")
         let angle = Int((atan2(transform.b, transform.a) * 180 / .pi).rounded())
         var rotation = ((angle % 360) + 360) % 360
         rotation = [0, 90, 180, 270].min { abs($0 - rotation) < abs($1 - rotation) } ?? 0
         let codec = formats.first.map { fourCC(CMFormatDescriptionGetMediaSubType($0)) }
         let hasAudio = !(try await asset.loadTracks(withMediaType: .audio)).isEmpty
+        trace("audioTrack ok")
         let sampleTimes = try presentationTimes(asset: asset, track: track, limit: 121)
+        trace("presentationTimes ok")
         let rate = rationalRate(nominal: Double(nominal), minFrameDuration: minFrame, sampleTimes: sampleTimes)
         let isVFR = variableRate(sampleTimes, timescale: timescale)
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
@@ -81,8 +93,14 @@ public enum MediaProbe {
             frameCount: (Rational(seconds: duration) * rate).roundedHalfUp(),
             width: Int(size.width.rounded()), height: Int(size.height.rounded()), rotation: rotation,
             codec: codec?.trimmingCharacters(in: .whitespaces).lowercased(),
-            startTimecode: try await startTimecode(asset: asset), isVFR: isVFR,
+            startTimecode: try await tracedTimecode(asset), isVFR: isVFR,
             sizeBytes: attributes?[.size] as? Int64, hasAudio: hasAudio, warnings: warnings)
+    }
+
+    static func tracedTimecode(_ asset: AVURLAsset) async throws -> String? {
+        let value = try await startTimecode(asset: asset)
+        trace("timecode ok")
+        return value
     }
 
     /// Ist die Abweichung einzelner Abstände größer als 8 % (mindestens 1,5 ms und 1,5 Schritte der Zeitbasis),
