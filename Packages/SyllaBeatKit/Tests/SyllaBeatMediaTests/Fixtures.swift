@@ -1,4 +1,5 @@
 import Foundation
+import Testing
 
 enum TestFolder {
     static func make(_ name: String = #function) throws -> URL {
@@ -19,4 +20,16 @@ enum TestFolder {
 
     /// Fester Testclip aus `tools/make_media_fixtures.py`.
     static func clip(_ name: String) -> URL { media.appendingPathComponent(name) }
+}
+
+/// GitHub-Runner sind virtuelle Macs ohne Medien-Scaler: Verkleinertes Dekodieren (AVAssetReader mit Zielgröße,
+/// AVAssetImageGenerator) hängt dort. Diese Tests laufen nur auf echter Hardware (lokal über `scripts/check.sh`).
+enum Hardware {
+    static let isVirtualMachine: Bool = {
+        var value: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        return sysctlbyname("kern.hv_vmm_present", &value, &size, nil, 0) == 0 && value == 1
+    }()
+
+    static let reason: Comment = "Virtueller Mac ohne Medien-Scaler; läuft lokal auf echter Hardware"
 }

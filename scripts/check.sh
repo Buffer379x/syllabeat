@@ -11,7 +11,7 @@ echo "== Formatierung (swift format lint --strict)"
 swift format lint --strict --configuration .swift-format $SWIFT_FILES Packages/SyllaBeatKit/Package.swift
 
 echo "== Paket-Tests"
-swift test --package-path Packages/SyllaBeatKit --quiet
+swift test --package-path Packages/SyllaBeatKit
 
 echo "== sbtool selftest"
 swift run --package-path Packages/SyllaBeatKit --quiet sbtool selftest
