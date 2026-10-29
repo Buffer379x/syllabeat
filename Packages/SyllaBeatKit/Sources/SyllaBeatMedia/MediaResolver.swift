@@ -55,13 +55,13 @@ public enum MediaResolver {
 }
 
 extension FileScanner {
-    static func audioFiles(in folder: URL) -> [URL] {
+    public static func audioFiles(in folder: URL) -> [URL] {
         let enumerator = FileManager.default.enumerator(
             at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles, .skipsPackageDescendants])
         var result: [URL] = []
         while let url = enumerator?.nextObject() as? URL {
             if isAudio(url) { result.append(url) }
         }
-        return result
+        return result.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
     }
 }

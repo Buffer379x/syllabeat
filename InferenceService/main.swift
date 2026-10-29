@@ -60,6 +60,14 @@ func residentMemory() -> UInt64 {
 /// Hält die geladenen Modelle; Anfragen laufen nacheinander (eine GPU-Aufgabe zur Zeit).
 actor Engine {
     private var siglip: SiglipEmbedder?
+    private var whisper: WhisperTranscriber?
+
+    private func transcriber() async throws -> WhisperTranscriber {
+        if let whisper { return whisper }
+        let loaded = try await WhisperTranscriber()
+        whisper = loaded
+        return loaded
+    }
 
     private func embedder(_ model: String) async throws -> SiglipEmbedder {
         guard model == ModelCatalog.siglip2.id else { throw EmbeddingError.unexpectedModel(model) }
@@ -82,6 +90,11 @@ actor Engine {
                 return .vectors(paths.map { (try? embedder.embed(imageAt: URL(fileURLWithPath: $0))) ?? [] })
             case .embedText(let model, let text):
                 return .vectors([try await embedder(model).embed(text: text)])
+            case .transcribe(let path, let language):
+                return .words(try await transcriber().transcribe(path: path, language: language))
+            case .installTranscription:
+                try await WhisperTranscriber.install()
+                return .done
             }
         } catch {
             return .failure(error.localizedDescription)

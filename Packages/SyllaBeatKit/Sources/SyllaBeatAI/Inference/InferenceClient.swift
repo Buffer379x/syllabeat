@@ -30,6 +30,22 @@ public actor InferenceClient {
         return vector
     }
 
+    public func transcribe(path: String, language: String?) async throws -> [RecognizedWord] {
+        switch try await send(.transcribe(path: path, language: language)) {
+        case .words(let words): return words
+        case .failure(let reason): throw InferenceError.remote(reason)
+        default: throw InferenceError.unexpectedReply
+        }
+    }
+
+    public func installTranscription() async throws {
+        switch try await send(.installTranscription) {
+        case .done: return
+        case .failure(let reason): throw InferenceError.remote(reason)
+        default: throw InferenceError.unexpectedReply
+        }
+    }
+
     private func vectors(_ response: InferenceResponse) throws -> [[Float]] {
         switch response {
         case .vectors(let vectors): return vectors

@@ -1,18 +1,23 @@
 import AppKit
 import SwiftUI
 import SyllaBeatCore
+import SyllaBeatUI
 
 /// Ein Dokumentfenster. Legt beim ersten Erscheinen den Medien-Controller des Dokuments an.
 struct ProjectWindow: View {
     @ObservedObject var document: ProjectDocument
     @Environment(AppServices.self) private var services
     @State private var media: MediaController?
+    @State private var song: SongController?
 
     var body: some View {
-        if let media {
-            ProjectWorkspace(document: document, media: media)
+        if let media, let song {
+            ProjectWorkspace(document: document, media: media, song: song)
         } else {
-            Color.clear.onAppear { media = MediaController(document: document, services: services) }
+            Color.clear.onAppear {
+                media = MediaController(document: document, services: services)
+                song = SongController(document: document, services: services)
+            }
         }
     }
 }
@@ -21,6 +26,7 @@ struct ProjectWindow: View {
 struct ProjectWorkspace: View {
     @ObservedObject var document: ProjectDocument
     var media: MediaController
+    var song: SongController
     @Environment(\.undoManager) private var undoManager
     @Environment(\.documentConfiguration) private var configuration
     @State private var selectedClipID: String?
@@ -41,23 +47,30 @@ struct ProjectWorkspace: View {
             if let message = media.message {
                 Banner(text: message, systemImage: "info.circle", identifier: "mediaBanner") { media.message = nil }
             }
+            if let message = song.message {
+                Banner(text: message, systemImage: "music.note", identifier: "songBanner") { song.message = nil }
+            }
             VSplitView {
                 HSplitView {
                     LibraryPane(project: project, media: media, selection: $selectedClipID)
                         .frame(minWidth: 220, idealWidth: 270, maxWidth: 460)
-                    PreviewPane(project: project)
+                    PreviewPane(project: project, playback: song.playback)
                         .frame(minWidth: 380, maxWidth: .infinity)
                     if showsInspector {
                         InspectorPane(
-                            document: document, media: media, selectedClipID: selectedClipID,
+                            document: document, media: media, song: song, selectedClipID: selectedClipID,
                             errorMessage: $errorMessage
                         )
                         .frame(minWidth: 250, idealWidth: 290, maxWidth: 460)
                     }
                 }
                 .frame(minHeight: 320, maxHeight: .infinity)
-                TimelinePane(project: project)
-                    .frame(minHeight: 172, idealHeight: 176, maxHeight: 200)
+                TimelinePane(project: project, song: song) { command in
+                    errorMessage = document.run(command, undoManager: undoManager)
+                }
+                .frame(
+                    minHeight: 120, idealHeight: TimelineCanvas.totalHeight + 50,
+                    maxHeight: TimelineCanvas.totalHeight + 60)
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
@@ -79,12 +92,14 @@ struct ProjectWorkspace: View {
         .task {
             media.undoManager = undoManager
             media.start()
+            song.songChanged()
             // Automatisierung (UI-Tests): `-SBImportPaths "<Pfad>|<Pfad>"` importiert beim Öffnen.
             if let paths = UserDefaults.standard.string(forKey: "SBImportPaths") {
                 media.importItems(paths.split(separator: "|").map { URL(fileURLWithPath: String($0)) })
             }
         }
         .onChange(of: undoManager) { _, manager in media.undoManager = manager }
+        .onChange(of: project.song) { _, _ in song.songChanged() }
         .alert(
             "Aktion nicht möglich", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })
         ) {

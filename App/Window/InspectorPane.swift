@@ -1,11 +1,13 @@
 import AppKit
 import SwiftUI
 import SyllaBeatCore
+import SyllaBeatUI
 
 /// Inspektor: zeigt den ausgewählten Clip oder, ohne Auswahl, das Projekt.
 struct InspectorPane: View {
     @ObservedObject var document: ProjectDocument
     var media: MediaController
+    var song: SongController
     var selectedClipID: String?
     @Binding var errorMessage: String?
     @Environment(\.undoManager) private var undoManager
@@ -18,7 +20,7 @@ struct InspectorPane: View {
                         errorMessage = document.run(command, undoManager: undoManager)
                     }
                 } else {
-                    ProjectInspector(document: document, errorMessage: $errorMessage)
+                    ProjectInspector(document: document, song: song, errorMessage: $errorMessage)
                 }
             }
             .padding(14)
@@ -220,9 +222,12 @@ struct StarRating: View {
 
 private struct ProjectInspector: View {
     @ObservedObject var document: ProjectDocument
+    var song: SongController
     @Binding var errorMessage: String?
     @Environment(\.undoManager) private var undoManager
     @State private var name = ""
+    @State private var lyrics = ""
+    @FocusState private var editingLyrics: Bool
 
     private var project: Project { document.project }
 
@@ -240,17 +245,60 @@ private struct ProjectInspector: View {
             Fact("Bildrate", "\(Format.fps(project.timeline.fps)) fps")
         }
         InspectorSection("Song") {
-            if let song = project.song { Fact("Datei", song.fileName) }
+            if let file = project.song { Fact("Datei", file.fileName) }
             if let analysis = project.analysis {
                 Fact("Dauer", Format.time(analysis.duration))
-                if analysis.tempo > 0 { Fact("Tempo", "\(Int(analysis.tempo.rounded())) BPM") }
-                Fact("Beats", "\(analysis.beats.count)")
-                Fact("Textzeilen", "\(analysis.lines.count)")
+                if analysis.tempo > 0 { Fact("Tempo", "\(Int(analysis.tempo.rounded())) BPM · \(analysis.meter)/4") }
+                Fact("Beats", "\(analysis.beats.count) (\(analysis.beats.filter(\.isDownbeat).count) Takte)")
                 Fact("Abschnitte", "\(analysis.sections.count)")
+                Fact(
+                    "Wörter",
+                    analysis.words.isEmpty
+                        ? "–" : "\(analysis.words.count), \(analysis.words.filter(\.isUncertain).count) unsicher")
+                if let model = analysis.transcriptionModel { Fact("Erkannt mit", model) }
+            } else if project.song != nil {
+                Text(song.analyzing ? "Wird analysiert …" : "Noch nicht analysiert").foregroundStyle(.secondary)
             } else {
-                Text("Noch nicht analysiert").foregroundStyle(.secondary)
+                Text("Song per Drag-and-Drop oder ⇧⌘I hinzufügen.").foregroundStyle(.secondary)
+            }
+            if project.song != nil {
+                HStack {
+                    Button("Neu analysieren") { song.analyze() }
+                        .disabled(song.analyzing)
+                        .help("Beats und Abschnitte neu erkennen; Rasterkorrekturen gehen dabei verloren.")
+                    Button("Gesang erkennen") { song.transcribe() }
+                        .disabled(song.transcribing || project.analysis == nil)
+                        .help(
+                            SongController.transcriptionInstalled
+                                ? "Wörter mit Zeiten erkennen (lokal)"
+                                : "Erst das Modell laden (Einstellungen → Modelle)"
+                        )
+                        .accessibilityIdentifier("song.transcribe")
+                }
+                .controlSize(.small)
             }
         }
+        InspectorSection("Songtext") {
+            TextEditor(text: $lyrics)
+                .font(.callout)
+                .frame(minHeight: 90, maxHeight: 220)
+                .scrollContentBackground(.hidden)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+                .focused($editingLyrics)
+                .accessibilityIdentifier("song.lyrics")
+            Text("Absätze oder Überschriften wie [Refrain] werden zu Abschnitten; gleicher Text heißt Wiederholung.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Button("Songtext ausrichten") {
+                commitLyrics()
+                song.alignLyrics()
+            }
+            .controlSize(.small)
+            .disabled(project.analysis == nil)
+            .accessibilityIdentifier("song.align")
+        }
+        .onAppear { lyrics = project.lyricsText }
+        .onChange(of: project.lyricsText) { _, new in if !editingLyrics { lyrics = new } }
+        .onChange(of: editingLyrics) { _, editing in if !editing { commitLyrics() } }
         if let cut = project.cut {
             InspectorSection("Schnitt") {
                 Fact("Variante", cut.name)
@@ -265,6 +313,11 @@ private struct ProjectInspector: View {
                 }
             }
         }
+    }
+
+    private func commitLyrics() {
+        guard lyrics != project.lyricsText else { return }
+        errorMessage = document.run(SetLyrics(text: lyrics), undoManager: undoManager)
     }
 
     private func rename() {

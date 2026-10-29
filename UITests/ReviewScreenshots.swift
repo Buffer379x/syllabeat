@@ -68,3 +68,55 @@ final class ReviewScreenshots: XCTestCase {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["SB_REVIEW_PROJECT"] != nil, "nur für Abnahme-Fotos")
     }
 }
+
+/// Bildschirmfotos der Song-Bearbeitung. Läuft nur mit `SB_REVIEW_SONG=<Projekt>` und `SB_REVIEW_IMPORT=<Ordner>`.
+final class SongReviewScreenshots: XCTestCase {
+    override func setUpWithError() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SB_REVIEW_SONG"] != nil, "nur für Abnahme-Fotos")
+    }
+
+    @MainActor
+    func testCaptureTimeline() throws {
+        let environment = ProcessInfo.processInfo.environment
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-SBOpenDocument", environment["SB_REVIEW_SONG"]!, "-ApplePersistenceIgnoreState", "YES",
+            "-SBImportPaths", environment["SB_REVIEW_IMPORT"]!,
+        ]
+        app.launch()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 15))
+        let start = Date()
+        func any(_ text: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(
+                NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text)
+            ).firstMatch
+        }
+        XCTAssertTrue(any("Wörter erkannt").waitForExistence(timeout: 420), "Gesangserkennung fehlt")
+        print("SB_REVIEW Song analysiert und Gesang erkannt: \(Int(Date().timeIntervalSince(start))) s")
+        sleep(2)
+        attach(window.screenshot(), "Timeline gesamt")
+        let timeline = app.descendants(matching: .any).matching(identifier: "timeline").firstMatch
+        let canvas = timeline.descendants(matching: .group).firstMatch
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)).click()
+        for _ in 0..<4 { app.typeKey("+", modifierFlags: .command) }
+        sleep(1)
+        attach(window.screenshot(), "Timeline vergrößert")
+        app.typeKey(" ", modifierFlags: [])
+        sleep(3)
+        app.typeKey(" ", modifierFlags: [])
+        attach(window.screenshot(), "Wiedergabe")
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).rightClick()
+        sleep(1)
+        attach(XCUIScreen.main.screenshot(), "Abschnittsmenü")
+        app.typeKey(.escape, modifierFlags: [])
+    }
+
+    @MainActor
+    private func attach(_ screenshot: XCUIScreenshot, _ name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}

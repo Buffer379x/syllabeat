@@ -3,6 +3,7 @@ import SwiftUI
 import SyllaBeatAI
 import SyllaBeatCore
 import SyllaBeatMedia
+import SyllaBeatUI
 
 /// Einstellungsfenster mit den fünf Bereichen aus F-17. Inhalte kommen mit den jeweiligen Meilensteinen dazu.
 struct SettingsView: View {
@@ -109,10 +110,36 @@ private struct ComponentRow: View {
 /// Modelle je Aufgabe. Volle Verwaltung (RAM-Empfehlung, Speicherort) folgt mit M5.
 private struct ModelSettings: View {
     @Environment(AppServices.self) private var services
+    @AppStorage("transcriptionLanguage") private var language = "de"
+    @AppStorage("autoTranscribe") private var autoTranscribe = true
 
     var body: some View {
         let _ = services.installGeneration
         Form {
+            Section("Gesangserkennung") {
+                LabeledContent {
+                    if services.installing.contains("whisper") {
+                        ProgressView().controlSize(.small)
+                    } else if TranscriptionModel.isInstalled {
+                        Button("Löschen", role: .destructive) { services.uninstallTranscription() }
+                    } else {
+                        Button("Laden (\(Format.bytes(UInt64(TranscriptionModel.downloadBytes))))") {
+                            services.installTranscription()
+                        }
+                    }
+                } label: {
+                    Text(TranscriptionModel.title)
+                    Text(
+                        "MIT · \(TranscriptionModel.isInstalled ? "geladen" : "nicht geladen") · läuft lokal, Wörter mit Zeiten"
+                    )
+                }
+                Picker("Sprache", selection: $language) {
+                    Text("Automatisch").tag("")
+                    Text("Deutsch").tag("de")
+                    Text("Englisch").tag("en")
+                }
+                Toggle("Nach der Songanalyse automatisch erkennen", isOn: $autoTranscribe)
+            }
             Section("Bildsuche") {
                 ForEach(ModelCatalog.all) { package in
                     LabeledContent {

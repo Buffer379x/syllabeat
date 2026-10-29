@@ -76,6 +76,25 @@ final class AppServices {
         installGeneration += 1
     }
 
+    /// Lädt das Transkriptionsmodell im Inferenzdienst und kompiliert es dort (erster Start dauert ≈ 2 min).
+    func installTranscription() {
+        guard !installing.contains("whisper") else { return }
+        installing.insert("whisper")
+        let client = inference
+        jobs.submit("\(TranscriptionModel.title) laden", resource: .network) { [weak self] context in
+            let owner = self
+            defer { Task { @MainActor in owner?.finishInstall("whisper") } }
+            await context.progress(nil, detail: "Laden und für die Neural Engine vorbereiten")
+            try await client.installTranscription()
+        }
+    }
+
+    func uninstallTranscription() {
+        try? FileManager.default.removeItem(
+            at: Locations.models.appendingPathComponent("transcription/whisperkit", isDirectory: true))
+        installGeneration += 1
+    }
+
     func installFFmpeg() {
         guard !installing.contains("ffmpeg") else { return }
         installing.insert("ffmpeg")

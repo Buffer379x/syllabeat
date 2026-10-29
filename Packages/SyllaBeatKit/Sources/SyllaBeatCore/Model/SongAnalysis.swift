@@ -16,13 +16,17 @@ public struct SongAnalysis: Codable, Sendable, Equatable {
     public var energy: [Float]
     public var language: String?
     public var transcriptionModel: String?
+    /// Rohes Transkript (nach Zeitkorrektur), damit sich ein geänderter Songtext ohne neue Transkription ausrichten lässt.
+    public var transcript: [RecognizedWord]
     public var warnings: [String]
 
     public init(
         duration: Double, sampleRate: Int = 48000, channels: Int = 2, tempo: Double = 0, meter: Int = 4,
         beats: [Beat] = [], words: [Word] = [], lines: [LyricLine] = [], sections: [SongSection] = [],
-        energy: [Float] = [], language: String? = nil, transcriptionModel: String? = nil, warnings: [String] = []
+        energy: [Float] = [], language: String? = nil, transcriptionModel: String? = nil,
+        transcript: [RecognizedWord] = [], warnings: [String] = []
     ) {
+        self.transcript = transcript
         self.duration = duration
         self.sampleRate = sampleRate
         self.channels = channels
@@ -52,6 +56,7 @@ public struct SongAnalysis: Codable, Sendable, Equatable {
         energy = try c.decode(.energy, default: [])
         language = try c.decodeIfPresent(String.self, forKey: .language)
         transcriptionModel = try c.decodeIfPresent(String.self, forKey: .transcriptionModel)
+        transcript = try c.decode(.transcript, default: [])
         warnings = try c.decode(.warnings, default: [])
     }
 
@@ -86,9 +91,12 @@ public struct Word: Codable, Sendable, Equatable, Identifiable {
     public var confidence: Double?
     /// Zeit wurde geschätzt statt erkannt.
     public var estimated: Bool
+    /// Silben mit geschätzten Zeiten (Silbentrennung des Systems, Dauer nach Vokalgewicht verteilt).
+    public var syllables: [Syllable]
 
     public init(
-        id: String, text: String, start: Double, end: Double, confidence: Double? = nil, estimated: Bool = false
+        id: String, text: String, start: Double, end: Double, confidence: Double? = nil, estimated: Bool = false,
+        syllables: [Syllable] = []
     ) {
         self.id = id
         self.text = text
@@ -96,7 +104,11 @@ public struct Word: Codable, Sendable, Equatable, Identifiable {
         self.end = end
         self.confidence = confidence
         self.estimated = estimated
+        self.syllables = syllables
     }
+
+    /// Unsicher heißt: geschätzt oder Konfidenz unter 0,5 (in der Timeline orange).
+    public var isUncertain: Bool { estimated || (confidence ?? 1) < 0.5 }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -106,6 +118,21 @@ public struct Word: Codable, Sendable, Equatable, Identifiable {
         end = try c.decode(Double.self, forKey: .end)
         confidence = try c.decodeIfPresent(Double.self, forKey: .confidence)
         estimated = try c.decode(.estimated, default: false)
+        syllables = try c.decode(.syllables, default: [])
+    }
+}
+
+public struct Syllable: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public var text: String
+    public var start: Double
+    public var end: Double
+
+    public init(id: String, text: String, start: Double, end: Double) {
+        self.id = id
+        self.text = text
+        self.start = start
+        self.end = end
     }
 }
 
@@ -116,10 +143,14 @@ public struct LyricLine: Codable, Sendable, Equatable, Identifiable {
     public var end: Double
     public var confidence: Double?
     public var needsReview: Bool
+    /// IDs der Wörter dieser Zeile.
+    public var wordIDs: [String]
 
     public init(
-        id: String, text: String, start: Double, end: Double, confidence: Double? = nil, needsReview: Bool = false
+        id: String, text: String, start: Double, end: Double, confidence: Double? = nil, needsReview: Bool = false,
+        wordIDs: [String] = []
     ) {
+        self.wordIDs = wordIDs
         self.id = id
         self.text = text
         self.start = start
@@ -136,6 +167,7 @@ public struct LyricLine: Codable, Sendable, Equatable, Identifiable {
         end = try c.decode(Double.self, forKey: .end)
         confidence = try c.decodeIfPresent(Double.self, forKey: .confidence)
         needsReview = try c.decode(.needsReview, default: false)
+        wordIDs = try c.decode(.wordIDs, default: [])
     }
 }
 
@@ -198,5 +230,20 @@ public struct SongSection: Codable, Sendable, Equatable, Identifiable {
         end = try c.decode(Double.self, forKey: .end)
         repeatOf = try c.decodeIfPresent(String.self, forKey: .repeatOf)
         needsReview = try c.decode(.needsReview, default: false)
+    }
+}
+
+/// Ein erkanntes Wort aus der Transkription.
+public struct RecognizedWord: Codable, Sendable, Equatable {
+    public var text: String
+    public var start: Double
+    public var end: Double
+    public var probability: Double
+
+    public init(text: String, start: Double, end: Double, probability: Double) {
+        self.text = text
+        self.start = start
+        self.end = end
+        self.probability = probability
     }
 }

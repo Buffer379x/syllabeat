@@ -1,28 +1,52 @@
+import AppKit
 import SwiftUI
+import SyllaBeatAudio
 import SyllaBeatCore
+import SyllaBeatUI
 
-/// Vorläufige Timeline: vier Spuren über die volle Songlänge, ohne Zoom und Bearbeitung (folgt in M3).
+/// Timeline: Werkzeugleiste für das Raster und darunter vier Spuren mit Zoom, Abspielposition und Bearbeitung.
 struct TimelinePane: View {
     var project: Project
+    var song: SongController
+    var run: (any EditCommand) -> Void
+    /// Pixel je Sekunde; `nil` heißt: ganzer Song passt in die Breite.
+    @State private var zoom: Double?
+    @State private var width: CGFloat = 800
 
     private static let headerWidth: CGFloat = 92
 
     var body: some View {
         VStack(spacing: 0) {
             if let analysis = project.analysis {
-                track("Abschnitte", height: 30) { SectionTrack(analysis: analysis) }
-                track("Text", height: 26) { LyricsTrack(analysis: analysis) }
-                track("Song", height: 64) { BeatTrack(analysis: analysis) }
-                track("Bild", height: 52) { ShotTrack(project: project, duration: analysis.duration) }
-                Spacer(minLength: 0)
+                toolbar(analysis)
+                Divider()
+                HStack(spacing: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(TimelineCanvas.Track.allCases, id: \.rawValue) { track in
+                            Text(track.title)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: Self.headerWidth, height: track.height, alignment: .leading)
+                                .padding(.leading, 10)
+                                .overlay(alignment: .bottom) { Divider() }
+                        }
+                    }
+                    Divider()
+                    GeometryReader { geometry in
+                        TimelineScrollView(
+                            content: content(analysis), pixelsPerSecond: pixelsPerSecond(analysis),
+                            playhead: song.playback.time, following: song.playback.isPlaying,
+                            actions: TimelineActions(
+                                seek: { song.playback.seek(to: $0) }, run: run,
+                                zoom: { value, _ in zoom = clamp(value, analysis) })
+                        )
+                        .onAppear { width = geometry.size.width }
+                        .onChange(of: geometry.size.width) { _, new in width = new }
+                    }
+                }
+                .frame(height: TimelineCanvas.totalHeight + 14)
             } else {
-                Text(
-                    project.song == nil
-                        ? "Die Timeline erscheint, sobald ein Song im Projekt ist."
-                        : "Die Timeline erscheint nach der Songanalyse."
-                )
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                placeholder
             }
         }
         .background(.background)
@@ -30,126 +54,140 @@ struct TimelinePane: View {
         .accessibilityIdentifier("timeline")
     }
 
-    private func track(_ title: String, height: CGFloat, @ViewBuilder content: () -> some View) -> some View {
-        HStack(spacing: 0) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: Self.headerWidth, alignment: .leading)
-                .padding(.leading, 10)
-            content()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-        }
-        .frame(height: height)
-        .overlay(alignment: .bottom) { Divider() }
-    }
-}
-
-extension SongSection.Kind {
-    var color: Color {
-        switch self {
-        case .verse: .blue
-        case .preChorus: .purple
-        case .chorus: .mint
-        case .bridge: .pink
-        case .intro, .outro: .gray
-        case .instrumental: .teal
-        case .other: .secondary
-        }
-    }
-}
-
-private struct SectionTrack: View {
-    var analysis: SongAnalysis
-
-    var body: some View {
-        GeometryReader { geometry in
-            let scale = geometry.size.width / max(analysis.duration, 0.001)
-            ForEach(analysis.sections) { section in
-                let width = max(1, (section.end - section.start) * scale - 1)
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(section.kind.color.opacity(0.35))
-                    .overlay(alignment: .leading) {
-                        Text(section.repeatOf == nil ? section.label : "\(section.label) ●")
-                            .font(.caption)
-                            .lineLimit(1)
-                            .padding(.horizontal, 4)
-                    }
-                    .frame(width: width, height: geometry.size.height - 6)
-                    .offset(x: section.start * scale, y: 3)
-                    .help("\(section.label): \(Format.time(section.start)) – \(Format.time(section.end))")
+    private var placeholder: some View {
+        VStack(spacing: 8) {
+            if project.song == nil {
+                Text("Die Timeline erscheint, sobald ein Song im Projekt ist.")
+            } else if song.analyzing {
+                ProgressView().controlSize(.small)
+                Text("Song wird analysiert …")
+            } else {
+                Text("Der Song ist noch nicht analysiert.")
+                Button("Song analysieren") { song.analyze() }
             }
         }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-}
 
-private struct LyricsTrack: View {
-    var analysis: SongAnalysis
-
-    var body: some View {
-        GeometryReader { geometry in
-            let scale = geometry.size.width / max(analysis.duration, 0.001)
-            ForEach(analysis.lines) { line in
-                Text(line.text)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .foregroundStyle(line.needsReview ? .orange : .primary)
-                    .frame(width: max(1, (line.end - line.start) * scale), alignment: .leading)
-                    .offset(x: line.start * scale, y: (geometry.size.height - 14) / 2)
-            }
-        }
-    }
-}
-
-private struct BeatTrack: View {
-    var analysis: SongAnalysis
-
-    var body: some View {
-        Canvas { context, size in
-            let scale = size.width / max(analysis.duration, 0.001)
-            for (index, beat) in analysis.beats.enumerated() {
-                let x = beat.time * scale
-                let bar = beat.isDownbeat || index % analysis.meter == 0
-                let height = bar ? size.height * 0.8 : size.height * 0.45
-                let rect = CGRect(x: x, y: (size.height - height) / 2, width: bar ? 1.5 : 1, height: height)
-                context.fill(Path(rect), with: .color(bar ? .primary.opacity(0.7) : .secondary.opacity(0.5)))
-            }
-        }
-        .accessibilityLabel("\(analysis.beats.count) Beats")
-        .accessibilityIdentifier("timeline.beats")
-    }
-}
-
-private struct ShotTrack: View {
-    var project: Project
-    var duration: Double
-
-    var body: some View {
-        if let cut = project.cut {
-            GeometryReader { geometry in
-                let scale = geometry.size.width / max(duration, 0.001)
-                ForEach(Array(cut.shots.enumerated()), id: \.element.id) { index, shot in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(
-                            index.isMultiple(of: 2) ? Color.accentColor.opacity(0.45) : Color.accentColor.opacity(0.25)
-                        )
-                        .frame(
-                            width: max(1, (shot.end.time - shot.start.time) * scale - 1),
-                            height: geometry.size.height - 8
-                        )
-                        .offset(x: shot.start.time * scale, y: 4)
-                        .help(
-                            "\(project.clip(withID: shot.clipID)?.name ?? shot.clipID): \(Format.time(shot.start.time)) – \(Format.time(shot.end.time))"
-                        )
+    private func toolbar(_ analysis: SongAnalysis) -> some View {
+        HStack(spacing: 10) {
+            Text("\(analysis.tempo.formatted(.number.precision(.fractionLength(1)))) BPM")
+                .monospacedDigit()
+                .help("Erkanntes Tempo")
+            Menu("Tempo") {
+                ForEach(ScaleTempo.Factor.allCases, id: \.rawValue) { factor in
+                    Button(factor.title) { run(ScaleTempo(factor: factor)) }
                 }
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(cut.shots.count) Einstellungen")
-            .accessibilityIdentifier("timeline.shots")
-        } else {
-            Text("Noch kein Schnitt").font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize()
+            .help("Tempo korrigieren: verdoppeln, halbieren oder Triolengefühl (×¾, ×4⁄3)")
+            Menu("\(analysis.meter)/4") {
+                ForEach([3, 4, 6], id: \.self) { meter in
+                    Button("\(meter)/4") { run(SetMeter(meter: meter)) }
+                }
+            }
+            .fixedSize()
+            .help("Taktart")
+            HStack(spacing: 2) {
+                Button("−10 ms") { run(ShiftBeats(milliseconds: -10)) }
+                Button("+10 ms") { run(ShiftBeats(milliseconds: 10)) }
+            }
+            .labelStyle(.titleOnly)
+            .help("Raster verschieben (jeder Schritt lässt sich rückgängig machen)")
+            Text("Rechtsklick auf Beat, Abschnitt oder Wort für mehr").font(.caption).foregroundStyle(.tertiary)
+            Spacer()
+            if song.transcribing {
+                ProgressView().controlSize(.small)
+                Text("Gesang wird erkannt …").font(.caption).foregroundStyle(.secondary)
+            }
+            Button("Verkleinern", systemImage: "minus.magnifyingglass") {
+                zoom = clamp(pixelsPerSecond(analysis) / 1.5, analysis)
+            }
+            .keyboardShortcut("-", modifiers: .command)
+            Button("Alles zeigen", systemImage: "arrow.left.and.right") { zoom = nil }
+                .keyboardShortcut("0", modifiers: .command)
+            Button("Vergrößern", systemImage: "plus.magnifyingglass") {
+                zoom = clamp(pixelsPerSecond(analysis) * 1.5, analysis)
+            }
+            .keyboardShortcut("+", modifiers: .command)
+        }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+    }
+
+    private func fit(_ analysis: SongAnalysis) -> Double {
+        Double(max(200, width - 4)) / max(1, analysis.duration)
+    }
+
+    private func pixelsPerSecond(_ analysis: SongAnalysis) -> Double {
+        zoom ?? fit(analysis)
+    }
+
+    private func clamp(_ value: Double, _ analysis: SongAnalysis) -> Double? {
+        let minimum = fit(analysis)
+        let result = min(800, max(minimum, value))
+        return result <= minimum * 1.001 ? nil : result
+    }
+
+    private func content(_ analysis: SongAnalysis) -> TimelineContent {
+        let shots = (project.cut?.shots ?? []).map { shot in
+            (start: shot.start.time, end: shot.end.time, name: project.clip(withID: shot.clipID)?.name ?? shot.clipID)
+        }
+        return TimelineContent(
+            duration: analysis.duration, beats: analysis.beats, meter: analysis.meter, sections: analysis.sections,
+            words: analysis.words, lines: analysis.lines, shots: shots, waveform: song.waveform)
+    }
+}
+
+/// Horizontale Bildlaufansicht mit der Zeichenfläche; folgt beim Abspielen der Abspielposition.
+struct TimelineScrollView: NSViewRepresentable {
+    var content: TimelineContent
+    var pixelsPerSecond: Double
+    var playhead: Double
+    var following: Bool
+    var actions: TimelineActions
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.hasHorizontalScroller = true
+        scroll.hasVerticalScroller = false
+        scroll.horizontalScrollElasticity = .allowed
+        scroll.verticalScrollElasticity = .none
+        scroll.drawsBackground = false
+        scroll.autohidesScrollers = true
+        scroll.documentView = TimelineCanvas()
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let canvas = scroll.documentView as? TimelineCanvas else { return }
+        let oldScale = canvas.pixelsPerSecond
+        let visibleTime = canvas.time(scroll.contentView.bounds.midX)
+        canvas.actions = actions
+        canvas.content = content
+        canvas.pixelsPerSecond = pixelsPerSecond
+        canvas.playhead = playhead
+        let width = max(scroll.contentSize.width, CGFloat(content.duration * pixelsPerSecond))
+        if canvas.frame.size != NSSize(width: width, height: TimelineCanvas.totalHeight) {
+            canvas.frame = NSRect(x: 0, y: 0, width: width, height: TimelineCanvas.totalHeight)
+            canvas.window?.invalidateCursorRects(for: canvas)
+        }
+        let visible = scroll.contentView.bounds
+        if oldScale != pixelsPerSecond {
+            // Beim Zoomen bleibt die Mitte (bzw. beim Abspielen die Abspielposition) stehen.
+            let target = canvas.x(following ? playhead : visibleTime) - visible.width / 2
+            scroll.contentView.scroll(to: NSPoint(x: max(0, min(width - visible.width, target)), y: 0))
+            scroll.reflectScrolledClipView(scroll.contentView)
+        } else if following {
+            let x = canvas.x(playhead)
+            if x < visible.minX || x > visible.maxX - 40 {
+                scroll.contentView.scroll(to: NSPoint(x: max(0, min(width - visible.width, x - 40)), y: 0))
+                scroll.reflectScrolledClipView(scroll.contentView)
+            }
         }
     }
 }

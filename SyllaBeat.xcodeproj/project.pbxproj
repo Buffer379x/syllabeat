@@ -13,18 +13,20 @@
 		5BEA7000000000000000001C /* SyllaBeatAI in Frameworks */ = {isa = PBXBuildFile; productRef = 5BEA70000000000000000018 /* SyllaBeatAI */; };
 		5BEA7000000000000000001F /* SyllaBeatMedia in Frameworks */ = {isa = PBXBuildFile; productRef = 5BEA7000000000000000001E /* SyllaBeatMedia */; };
 		5BEA70000000000000000021 /* SyllaBeatModels in Frameworks */ = {isa = PBXBuildFile; productRef = 5BEA70000000000000000020 /* SyllaBeatModels */; };
+		5BEA70000000000000000023 /* SyllaBeatAudio in Frameworks */ = {isa = PBXBuildFile; productRef = 5BEA70000000000000000022 /* SyllaBeatAudio */; };
+		5BEA70000000000000000025 /* SyllaBeatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 5BEA70000000000000000024 /* SyllaBeatUI */; };
 		5BEA7000000000000000001D /* SyllaBeatInference.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 5BEA7000000000000000000D /* SyllaBeatInference.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		5BEA7000000000000000002C /* PBXContainerItemProxy */ = {
+		5BEA70000000000000000030 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 5BEA70000000000000000001 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 5BEA7000000000000000000A;
 			remoteInfo = SyllaBeatInference;
 		};
-		5BEA7000000000000000002D /* PBXContainerItemProxy */ = {
+		5BEA70000000000000000031 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 5BEA70000000000000000001 /* Project object */;
 			proxyType = 1;
@@ -34,7 +36,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		5BEA70000000000000000025 /* Embed XPC Services */ = {
+		5BEA70000000000000000029 /* Embed XPC Services */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices";
@@ -66,17 +68,19 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		5BEA70000000000000000023 /* Frameworks */ = {
+		5BEA70000000000000000027 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				5BEA70000000000000000019 /* SyllaBeatCore in Frameworks */,
 				5BEA7000000000000000001A /* SyllaBeatAI in Frameworks */,
 				5BEA7000000000000000001F /* SyllaBeatMedia in Frameworks */,
+				5BEA70000000000000000023 /* SyllaBeatAudio in Frameworks */,
+				5BEA70000000000000000025 /* SyllaBeatUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5BEA70000000000000000027 /* Frameworks */ = {
+		5BEA7000000000000000002B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -86,7 +90,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5BEA7000000000000000002A /* Frameworks */ = {
+		5BEA7000000000000000002E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -135,17 +139,17 @@
 /* Begin PBXNativeTarget section */
 		5BEA70000000000000000009 /* SyllaBeat */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5BEA70000000000000000031 /* Build configuration list for PBXNativeTarget "SyllaBeat" */;
+			buildConfigurationList = 5BEA70000000000000000035 /* Build configuration list for PBXNativeTarget "SyllaBeat" */;
 			buildPhases = (
-				5BEA70000000000000000022 /* Sources */,
-				5BEA70000000000000000023 /* Frameworks */,
-				5BEA70000000000000000024 /* Resources */,
-				5BEA70000000000000000025 /* Embed XPC Services */,
+				5BEA70000000000000000026 /* Sources */,
+				5BEA70000000000000000027 /* Frameworks */,
+				5BEA70000000000000000028 /* Resources */,
+				5BEA70000000000000000029 /* Embed XPC Services */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				5BEA7000000000000000002E /* PBXTargetDependency */,
+				5BEA70000000000000000032 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5BEA70000000000000000005 /* App */,
@@ -155,6 +159,8 @@
 				5BEA70000000000000000015 /* SyllaBeatCore */,
 				5BEA70000000000000000016 /* SyllaBeatAI */,
 				5BEA7000000000000000001E /* SyllaBeatMedia */,
+				5BEA70000000000000000022 /* SyllaBeatAudio */,
+				5BEA70000000000000000024 /* SyllaBeatUI */,
 			);
 			productName = SyllaBeat;
 			productReference = 5BEA7000000000000000000C /* SyllaBeat.app */;
@@ -162,11 +168,11 @@
 		};
 		5BEA7000000000000000000A /* SyllaBeatInference */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5BEA70000000000000000032 /* Build configuration list for PBXNativeTarget "SyllaBeatInference" */;
+			buildConfigurationList = 5BEA70000000000000000036 /* Build configuration list for PBXNativeTarget "SyllaBeatInference" */;
 			buildPhases = (
-				5BEA70000000000000000026 /* Sources */,
-				5BEA70000000000000000027 /* Frameworks */,
-				5BEA70000000000000000028 /* Resources */,
+				5BEA7000000000000000002A /* Sources */,
+				5BEA7000000000000000002B /* Frameworks */,
+				5BEA7000000000000000002C /* Resources */,
 			);
 			buildRules = (
 			);
@@ -187,16 +193,16 @@
 		};
 		5BEA7000000000000000000B /* SyllaBeatUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5BEA70000000000000000033 /* Build configuration list for PBXNativeTarget "SyllaBeatUITests" */;
+			buildConfigurationList = 5BEA70000000000000000037 /* Build configuration list for PBXNativeTarget "SyllaBeatUITests" */;
 			buildPhases = (
-				5BEA70000000000000000029 /* Sources */,
-				5BEA7000000000000000002A /* Frameworks */,
-				5BEA7000000000000000002B /* Resources */,
+				5BEA7000000000000000002D /* Sources */,
+				5BEA7000000000000000002E /* Frameworks */,
+				5BEA7000000000000000002F /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				5BEA7000000000000000002F /* PBXTargetDependency */,
+				5BEA70000000000000000033 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5BEA70000000000000000007 /* UITests */,
@@ -228,7 +234,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 5BEA70000000000000000030 /* Build configuration list for PBXProject "SyllaBeat" */;
+			buildConfigurationList = 5BEA70000000000000000034 /* Build configuration list for PBXProject "SyllaBeat" */;
 			developmentRegion = de;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -254,13 +260,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		5BEA70000000000000000024 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		5BEA70000000000000000028 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -268,7 +267,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5BEA7000000000000000002B /* Resources */ = {
+		5BEA7000000000000000002C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5BEA7000000000000000002F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -278,13 +284,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		5BEA70000000000000000022 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		5BEA70000000000000000026 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -292,7 +291,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5BEA70000000000000000029 /* Sources */ = {
+		5BEA7000000000000000002A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5BEA7000000000000000002D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -302,20 +308,20 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		5BEA7000000000000000002E /* PBXTargetDependency */ = {
+		5BEA70000000000000000032 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 5BEA7000000000000000000A /* SyllaBeatInference */;
-			targetProxy = 5BEA7000000000000000002C /* PBXContainerItemProxy */;
+			targetProxy = 5BEA70000000000000000030 /* PBXContainerItemProxy */;
 		};
-		5BEA7000000000000000002F /* PBXTargetDependency */ = {
+		5BEA70000000000000000033 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 5BEA70000000000000000009 /* SyllaBeat */;
-			targetProxy = 5BEA7000000000000000002D /* PBXContainerItemProxy */;
+			targetProxy = 5BEA70000000000000000031 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		5BEA70000000000000000034 /* Debug */ = {
+		5BEA70000000000000000038 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5BEA70000000000000000010;
 			buildSettings = {
@@ -323,7 +329,7 @@
 			};
 			name = Debug;
 		};
-		5BEA70000000000000000035 /* Release */ = {
+		5BEA70000000000000000039 /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5BEA70000000000000000011;
 			buildSettings = {
@@ -331,83 +337,83 @@
 			};
 			name = Release;
 		};
-		5BEA70000000000000000036 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Config/App-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = SyllaBeat;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Buffer379x";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = de.syllabeat.app;
-				PRODUCT_NAME = SyllaBeat;
-			};
-			name = Debug;
-		};
-		5BEA70000000000000000037 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Config/App-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = SyllaBeat;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Buffer379x";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = de.syllabeat.app;
-				PRODUCT_NAME = SyllaBeat;
-			};
-			name = Release;
-		};
-		5BEA70000000000000000038 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Config/Inference-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = SyllaBeatInference;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../../../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = de.syllabeat.app.inference;
-				PRODUCT_NAME = SyllaBeatInference;
-				SKIP_INSTALL = YES;
-			};
-			name = Debug;
-		};
-		5BEA70000000000000000039 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Config/Inference-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = SyllaBeatInference;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../../../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = de.syllabeat.app.inference;
-				PRODUCT_NAME = SyllaBeatInference;
-				SKIP_INSTALL = YES;
-			};
-			name = Release;
-		};
 		5BEA7000000000000000003A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/App-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = SyllaBeat;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Buffer379x";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = de.syllabeat.app;
+				PRODUCT_NAME = SyllaBeat;
+			};
+			name = Debug;
+		};
+		5BEA7000000000000000003B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/App-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = SyllaBeat;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Buffer379x";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = de.syllabeat.app;
+				PRODUCT_NAME = SyllaBeat;
+			};
+			name = Release;
+		};
+		5BEA7000000000000000003C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Inference-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = SyllaBeatInference;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = de.syllabeat.app.inference;
+				PRODUCT_NAME = SyllaBeatInference;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		5BEA7000000000000000003D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Inference-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = SyllaBeatInference;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = de.syllabeat.app.inference;
+				PRODUCT_NAME = SyllaBeatInference;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		5BEA7000000000000000003E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -417,7 +423,7 @@
 			};
 			name = Debug;
 		};
-		5BEA7000000000000000003B /* Release */ = {
+		5BEA7000000000000000003F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -430,25 +436,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		5BEA70000000000000000030 /* Build configuration list for PBXProject "SyllaBeat" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				5BEA70000000000000000034 /* Debug */,
-				5BEA70000000000000000035 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		5BEA70000000000000000031 /* Build configuration list for PBXNativeTarget "SyllaBeat" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				5BEA70000000000000000036 /* Debug */,
-				5BEA70000000000000000037 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		5BEA70000000000000000032 /* Build configuration list for PBXNativeTarget "SyllaBeatInference" */ = {
+		5BEA70000000000000000034 /* Build configuration list for PBXProject "SyllaBeat" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5BEA70000000000000000038 /* Debug */,
@@ -457,11 +445,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5BEA70000000000000000033 /* Build configuration list for PBXNativeTarget "SyllaBeatUITests" */ = {
+		5BEA70000000000000000035 /* Build configuration list for PBXNativeTarget "SyllaBeat" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5BEA7000000000000000003A /* Debug */,
 				5BEA7000000000000000003B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5BEA70000000000000000036 /* Build configuration list for PBXNativeTarget "SyllaBeatInference" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5BEA7000000000000000003C /* Debug */,
+				5BEA7000000000000000003D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5BEA70000000000000000037 /* Build configuration list for PBXNativeTarget "SyllaBeatUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5BEA7000000000000000003E /* Debug */,
+				5BEA7000000000000000003F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -505,6 +511,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5BEA70000000000000000008 /* XCLocalSwiftPackageReference "Packages/SyllaBeatKit" */;
 			productName = SyllaBeatModels;
+		};
+		5BEA70000000000000000022 /* SyllaBeatAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5BEA70000000000000000008 /* XCLocalSwiftPackageReference "Packages/SyllaBeatKit" */;
+			productName = SyllaBeatAudio;
+		};
+		5BEA70000000000000000024 /* SyllaBeatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5BEA70000000000000000008 /* XCLocalSwiftPackageReference "Packages/SyllaBeatKit" */;
+			productName = SyllaBeatUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

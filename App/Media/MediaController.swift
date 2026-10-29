@@ -87,7 +87,12 @@ final class MediaController {
     /// Dateien und Ordner aus Drag-and-Drop oder Dialog: Videos werden Clips, die erste Audiodatei wird der Song.
     func importItems(_ urls: [URL]) {
         let includeSubfolders = UserDefaults.standard.object(forKey: "importSubfolders") as? Bool ?? true
-        if let audio = urls.first(where: FileScanner.isAudio) { chooseSong(audio) }
+        // Song: eine abgelegte Audiodatei, sonst – solange das Projekt keinen Song hat – die erste in einem Ordner.
+        var audio = urls.first(where: FileScanner.isAudio)
+        if audio == nil, project?.song == nil {
+            audio = urls.filter(\.hasDirectoryPath).lazy.flatMap(FileScanner.audioFiles(in:)).first
+        }
+        if let audio { chooseSong(audio) }
         let analyzer = analyzer
         let existing = Set((project?.clips ?? []).map(\.media.path))
         services.jobs.submit("Clips einlesen", resource: .io) { [weak self] context in

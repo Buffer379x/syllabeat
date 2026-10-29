@@ -27,6 +27,11 @@ public struct MediaCache: Sendable {
         folder(for: fingerprint).appendingPathComponent("filmstrip.heic")
     }
 
+    /// Wellenform eines Songs (Minimum/Maximum je 10 ms).
+    public func waveform(fingerprint: String) -> URL {
+        folder(for: fingerprint).appendingPathComponent("waveform.f16")
+    }
+
     public func embeddings(fingerprint: String, model: String) -> URL {
         folder(for: fingerprint).appendingPathComponent("embeddings-\(model).plist")
     }

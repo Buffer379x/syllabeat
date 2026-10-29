@@ -17,6 +17,11 @@ let usage = """
       model-install [<Ordner>]   SigLIP 2 laden (oder aus einem Ordner mit den ZIP-Dateien)
       embed <Projekt>            fehlende Szenen-Embeddings berechnen
       search <Projekt> <Text>    semantische Suche, beste 5 Clips
+
+      song <Audiodatei>          Beats, Tempo, Takte und Abschnitte eines Songs
+      songtruth <Ordner>         Songanalyse gegen *.truth.json bewerten
+      bench-timeline             Zeichenzeit der Timeline (6 min, 720 Beats) messen
+      wordtruth <Ordner>         Transkription, Wortzeit-Korrektur und Ausrichtung gegen *.truth.json bewerten
     """
 
 struct ToolError: Error, CustomStringConvertible {
@@ -125,6 +130,10 @@ do {
         try await importFolder(arguments[1], output: rest.first, parallel: parallel)
     case ("model-install", 1...2): try await installModel(source: arguments.count == 2 ? arguments[1] : nil)
     case ("embed", 2): try await embedProject(arguments[1])
+    case ("song", 2): try await analyzeSong(arguments[1])
+    case ("songtruth", 2): try await evaluateSongs(arguments[1])
+    case ("wordtruth", 2): try await evaluateTranscription(arguments[1])
+    case ("bench-timeline", 1): await MainActor.run { benchTimeline() }
     case ("search", 3...): try await search(arguments[1], query: arguments.dropFirst(2).joined(separator: " "))
     default:
         FileHandle.standardError.write(Data((usage + "\n").utf8))

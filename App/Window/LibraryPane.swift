@@ -1,5 +1,6 @@
 import SwiftUI
 import SyllaBeatCore
+import SyllaBeatUI
 
 enum LibraryFilter: String, CaseIterable, Identifiable {
     case all, unused, used, favorites, warnings, excluded

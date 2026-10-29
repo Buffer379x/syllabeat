@@ -1,4 +1,5 @@
 import Foundation
+import SyllaBeatCore
 
 /// Nachrichten zwischen App und dem XPC-Dienst `SyllaBeatInference`. Alle Modelle laufen in diesem Dienst,
 /// damit ein Absturz durch Speicherdruck die App nicht mitreißt.
@@ -13,6 +14,10 @@ public enum InferenceRequest: Codable, Sendable, Equatable {
     /// Bild-Embeddings für Bilddateien (Vorschaubilder im Zwischenspeicher); Reihenfolge wie `paths`.
     case embedImages(model: String, paths: [String])
     case embedText(model: String, text: String)
+    /// Wörter mit Zeiten; `language` nil erkennt die Sprache selbst.
+    case transcribe(path: String, language: String?)
+    /// Lädt das Transkriptionsmodell und kompiliert es für die Neural Engine.
+    case installTranscription
 }
 
 public struct InferenceStatus: Codable, Sendable, Equatable {
@@ -38,6 +43,8 @@ public enum InferenceResponse: Codable, Sendable, Equatable {
     case status(InferenceStatus)
     /// Ein Vektor je Eingabe; ein leerer Vektor heißt: Eingabe nicht lesbar.
     case vectors([[Float]])
+    case words([RecognizedWord])
+    case done
     case failure(String)
 }
 
