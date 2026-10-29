@@ -5,7 +5,8 @@ set -u
 LIMIT="$1"
 shift
 LOG="${RUNNER_TEMP:-/tmp}/ci-run.log"
-"$@" > "$LOG" 2>&1 &
+# Über ein Pseudo-Terminal, damit die Testausgabe sofort (ungepuffert) im Protokoll landet.
+script -q "$LOG" "$@" > /dev/null 2>&1 &
 PID=$!
 ELAPSED=0
 while kill -0 "$PID" 2>/dev/null; do
@@ -13,8 +14,9 @@ while kill -0 "$PID" 2>/dev/null; do
     ELAPSED=$((ELAPSED + 10))
     if [ "$ELAPSED" -ge "$LIMIT" ]; then
         echo "Zeitlimit $LIMIT s überschritten, Abbruch."
-        pkill -P "$PID" 2>/dev/null
+        pkill -TERM -P "$PID" 2>/dev/null
         kill "$PID" 2>/dev/null
+        sleep 2
         STATUS=124
         break
     fi
@@ -22,7 +24,7 @@ done
 [ "${STATUS:-}" = 124 ] || { wait "$PID"; STATUS=$?; }
 cat "$LOG"
 if [ "$STATUS" != 0 ]; then
-    TAIL=$(grep -v "^\[" "$LOG" | tail -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+    TAIL=$(tr -d '\r' < "$LOG" | grep -v "^\[\|Fetch\|working copy\|Working copy" | tail -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
     echo "::error title=Prüfung fehlgeschlagen (Status $STATUS)::$TAIL"
 fi
 exit "$STATUS"
