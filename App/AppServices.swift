@@ -71,6 +71,11 @@ final class AppServices {
         }
     }
 
+    /// Nach einem neuen Modellordner: Status neu lesen.
+    func refreshModels() {
+        installGeneration += 1
+    }
+
     func uninstall(_ package: ModelPackage) {
         try? package.uninstall()
         installGeneration += 1

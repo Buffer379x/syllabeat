@@ -11,8 +11,20 @@ public enum Locations {
             ?? URL.applicationSupportDirectory.appendingPathComponent("SyllaBeat", isDirectory: true)
     }
 
-    /// Geladene Modelle: `<Aufgabe>/<Modell-ID>@<Revision>/`.
-    public static var models: URL { applicationSupport.appendingPathComponent("Models", isDirectory: true) }
+    /// Geladene Modelle: `<Aufgabe>/<Modell-ID>@<Revision>/`. Der Ordner lässt sich in den Einstellungen verlegen
+    /// (`modelsFolder` in den Einstellungen der App; der Inferenzdienst liest dieselbe Domäne).
+    public static var models: URL {
+        // In der App selbst die eigenen Einstellungen, im Inferenzdienst die Domäne der App.
+        let settings =
+            Bundle.main.bundleIdentifier == appDomain ? UserDefaults.standard : UserDefaults(suiteName: appDomain)
+        if override == nil, let custom = settings?.string(forKey: "modelsFolder"), !custom.isEmpty {
+            return URL(fileURLWithPath: custom, isDirectory: true)
+        }
+        return applicationSupport.appendingPathComponent("Models", isDirectory: true)
+    }
+
+    /// Einstellungs-Domäne der App (auch für den Inferenzdienst).
+    public static let appDomain = "de.syllabeat.app"
 
     /// Nachladbare Komponenten wie ffmpeg.
     public static var components: URL { applicationSupport.appendingPathComponent("Components", isDirectory: true) }

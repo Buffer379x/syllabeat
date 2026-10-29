@@ -16,6 +16,8 @@ public struct Project: Codable, Sendable, Equatable {
     public var brief: String
     public var clips: [Clip]
     public var analysis: SongAnalysis?
+    /// KI-Regie (Stufe 1); `nil` heißt: Schnitt ohne Storyboard.
+    public var storyboard: Storyboard?
     public var style: CutStyle
     /// Aktive Schnittvariante.
     public var cut: Cut?
@@ -36,6 +38,7 @@ public struct Project: Codable, Sendable, Equatable {
         self.brief = brief
         self.clips = clips
         self.analysis = analysis
+        self.storyboard = nil
         self.style = style
         self.cut = cut
         self.variants = variants
@@ -52,6 +55,7 @@ public struct Project: Codable, Sendable, Equatable {
         brief = try c.decode(.brief, default: "")
         clips = try c.decode(.clips, default: [])
         analysis = try c.decodeIfPresent(SongAnalysis.self, forKey: .analysis)
+        storyboard = try c.decodeIfPresent(Storyboard.self, forKey: .storyboard)
         style = try c.decode(.style, default: CutStyle())
         cut = try c.decodeIfPresent(Cut.self, forKey: .cut)
         variants = try c.decode(.variants, default: [])

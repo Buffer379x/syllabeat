@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "SyllaBeatUI", targets: ["SyllaBeatUI"]),
         .library(name: "SyllaBeatAI", targets: ["SyllaBeatAI"]),
         .library(name: "SyllaBeatModels", targets: ["SyllaBeatModels"]),
+        .library(name: "SyllaBeatMLX", targets: ["SyllaBeatMLX"]),
         .executable(name: "sbtool", targets: ["sbtool"]),
     ],
     dependencies: [
@@ -20,6 +21,8 @@ let package = Package(
         .package(url: "https://github.com/huggingface/swift-transformers.git", exact: "1.3.5"),
         // Transkription mit Wortzeiten (MIT); exakt gepinnt wie im Spike M0.
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", exact: "1.1.1"),
+        // Lokale Sprach- und Bildmodelle (MIT); exakt gepinnt wie im Spike M0 und in der CI-Probe.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", exact: "3.32.3"),
     ],
     targets: [
         .target(name: "SyllaBeatCore"),
@@ -33,9 +36,18 @@ let package = Package(
                 "SyllaBeatCore", .product(name: "Tokenizers", package: "swift-transformers"),
                 .product(name: "WhisperKit", package: "WhisperKit"),
             ]),
+        .target(
+            name: "SyllaBeatMLX",
+            dependencies: [
+                .product(name: "MLXVLM", package: "mlx-swift-lm"),
+                .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+                .product(name: "Tokenizers", package: "swift-transformers"),
+            ]),
         .executableTarget(
             name: "sbtool",
-            dependencies: ["SyllaBeatCore", "SyllaBeatMedia", "SyllaBeatAudio", "SyllaBeatModels", "SyllaBeatUI"]),
+            dependencies: [
+                "SyllaBeatCore", "SyllaBeatMedia", "SyllaBeatAudio", "SyllaBeatModels", "SyllaBeatUI", "SyllaBeatAI",
+            ]),
         .testTarget(name: "SyllaBeatCoreTests", dependencies: ["SyllaBeatCore"]),
         .testTarget(name: "SyllaBeatMediaTests", dependencies: ["SyllaBeatMedia"]),
         .testTarget(name: "SyllaBeatAudioTests", dependencies: ["SyllaBeatAudio"]),

@@ -1,12 +1,15 @@
 import Foundation
 
-/// Ähnlichkeit zwischen Textzeilen und Szenen (SigLIP 2), nach Zeilen-ID und Szenen-ID. Optional: ohne sie schneidet
-/// die Engine nach Energie, Ästhetik und Abwechslung.
+/// Ähnlichkeiten aus SigLIP 2: Textzeile ↔ Szene (`values`, nach Zeilen-ID) und Storyboard-Suchbegriffe eines
+/// Abschnitts ↔ Szene (`sections`, nach Abschnitts-ID), jeweils nach Szenen-ID. Optional: ohne sie schneidet die
+/// Engine nach Energie, Ästhetik und Abwechslung.
 public struct TextScores: Sendable, Equatable {
     public var values: [String: [String: Float]]
+    public var sections: [String: [String: Float]]
 
-    public init(_ values: [String: [String: Float]] = [:]) {
+    public init(_ values: [String: [String: Float]] = [:], sections: [String: [String: Float]] = [:]) {
         self.values = values
+        self.sections = sections
     }
 }
 
@@ -15,11 +18,12 @@ public struct TextScores: Sendable, Equatable {
 /// Clips tabu, fixierte Shots bleiben. Ergebnis inklusive Begründung und Alternativen je Shot.
 public enum CutEngine {
     public enum Component: String, CaseIterable, Sendable {
-        case text, energy, aesthetics, rating, shotSize, reuse, adjacent, sharpness, chance
+        case text, story, energy, aesthetics, rating, shotSize, reuse, adjacent, sharpness, chance
 
         public var title: String {
             switch self {
             case .text: "Text ↔ Bild"
+            case .story: "Storyboard"
             case .energy: "Energie ↔ Bewegung"
             case .aesthetics: "Ästhetik"
             case .rating: "Bewertung"
@@ -41,6 +45,7 @@ public enum CutEngine {
     /// Reihenfolge (Gleitkomma-Addition hängt von der Reihenfolge ab).
     struct Scores: Equatable {
         var text = 0.0
+        var story = 0.0
         var energy = 0.0
         var aesthetics = 0.0
         var rating = 0.0
@@ -50,11 +55,14 @@ public enum CutEngine {
         var sharpness = 0.0
         var chance = 0.0
 
-        var total: Double { text + energy + aesthetics + rating + shotSize + reuse + adjacent + sharpness + chance }
+        var total: Double {
+            text + story + energy + aesthetics + rating + shotSize + reuse + adjacent + sharpness + chance
+        }
 
         subscript(component: Component) -> Double {
             switch component {
             case .text: text
+            case .story: story
             case .energy: energy
             case .aesthetics: aesthetics
             case .rating: rating
@@ -161,7 +169,8 @@ public enum CutEngine {
         for slot in slots {
             if case .copy(let from) = slot.role { need[from] = max(need[from], slot.duration + 0.05) }
         }
-        let text = normalize(textScores, slots: slots, units: units)
+        let text = normalize(textScores.values, keys: Set(slots.compactMap(\.lineID)), units: units)
+        let story = normalize(textScores.sections, keys: Set(slots.compactMap(\.sectionID)), units: units)
         var nodes: [Node] = []
         nodes.reserveCapacity(slots.count * beamWidth)
         var beams = [
@@ -201,7 +210,7 @@ public enum CutEngine {
             case .free:
                 let candidates = rankedCandidates(
                     slotIndex, slot, need: need[slotIndex], units: units, text: slot.lineID.flatMap { text[$0] },
-                    seed: style.seed)
+                    story: slot.sectionID.flatMap { story[$0] }, seed: style.seed)
                 alternatives[slotIndex] = Array(candidates.prefix(9))
                 for (b, beam) in beams.enumerated() {
                     let previous = beam.node >= 0 ? nodes[beam.node].pick.unit : -1
@@ -363,20 +372,21 @@ public enum CutEngine {
         return units
     }
 
-    /// Text-Ähnlichkeit je Zeile auf 0…1 normieren (SigLIP-Werte liegen dicht beieinander), als Liste je Einheit.
-    static func normalize(_ scores: TextScores, slots: [Slot], units: [Unit]) -> [String: [Double]] {
+    /// Ähnlichkeiten je Zeile bzw. Abschnitt auf 0…1 normieren (SigLIP-Werte liegen dicht beieinander), als Liste
+    /// je Einheit.
+    static func normalize(_ scores: [String: [String: Float]], keys: Set<String>, units: [Unit]) -> [String: [Double]] {
         var result: [String: [Double]] = [:]
-        for line in Set(slots.compactMap(\.lineID)) {
-            guard let row = scores.values[line], let low = row.values.min(), let high = row.values.max(), high > low
+        for key in keys {
+            guard let row = scores[key], let low = row.values.min(), let high = row.values.max(), high > low
             else { continue }
-            result[line] = units.map { unit in row[unit.sceneID].map { Double(($0 - low) / (high - low)) } ?? 0 }
+            result[key] = units.map { unit in row[unit.sceneID].map { Double(($0 - low) / (high - low)) } ?? 0 }
         }
         return result
     }
 
     /// Die besten Einheiten für einen Slot nach festen Anteilen (ohne Wiederverwendung und Nachbarschaft).
     static func rankedCandidates(
-        _ slotIndex: Int, _ slot: Slot, need: Double, units: [Unit], text: [Double]?, seed: UInt64
+        _ slotIndex: Int, _ slot: Slot, need: Double, units: [Unit], text: [Double]?, story: [Double]?, seed: UInt64
     ) -> [Candidate] {
         var top = TopK<Candidate>(capacity: candidatesPerSlot) { $0.base }
         let prefix = SeededRandom.mix(SeededRandom.mix(SeededRandom.basis, seed), UInt64(slotIndex))
@@ -384,6 +394,7 @@ public enum CutEngine {
             var random = SeededRandom(seed: SeededRandom.mix(SeededRandom.mix(prefix, UInt64(index)), 0xC0FFEE))
             var scores = unit.fixed
             if let text { scores.text = 1.2 * text[index] }
+            if let story { scores.story = 1.0 * story[index] }
             scores.energy = 0.6 * (1 - abs(unit.motion - slot.energy))
             scores.chance = 0.5 * (random.unit() - 0.5)
             let base = scores.total

@@ -88,7 +88,9 @@ public enum SlotPlanner {
             if style.refrainMode != .free, let source, let copied = copiedOffsets(source, into: range, beats: beats) {
                 interior = copied
             } else {
-                interior = generate(section, range: range, beats: beats, analysis: analysis, style: style)
+                interior = generate(
+                    section, range: range, beats: beats, analysis: analysis, style: style,
+                    pace: project.storyboard?.plan(for: section.id)?.pace ?? .normal)
             }
             if section.repeatOf == nil {
                 templates[section.id] = (range.lowerBound, interior.map { $0 - range.lowerBound })
@@ -136,12 +138,14 @@ public enum SlotPlanner {
 
     /// Innere Schnitte eines Abschnitts als Beat-Indizes.
     static func generate(
-        _ section: SongSection, range: Range<Int>, beats: [Double], analysis: SongAnalysis, style: CutStyle
+        _ section: SongSection, range: Range<Int>, beats: [Double], analysis: SongAnalysis, style: CutStyle,
+        pace: Storyboard.Pace = .normal
     ) -> [Int] {
         guard range.count > 1 else { return [] }
         var random = SeededRandom([style.seed, SeededRandom.hash(section.id), 0x51_07])
         let chorus = section.kind == .chorus
-        let base = Double(chorus && style.chorusFaster ? style.chorusBeats : style.verseBeats)
+        // Das Schnitttempo des Storyboards wirkt auf die Beats je Einstellung (ruhig ×2, schnell ×½).
+        let base = Double(chorus && style.chorusFaster ? style.chorusBeats : style.verseBeats) * pace.beatFactor
         let energies = range.compactMap { $0 < analysis.energy.count ? Double(analysis.energy[$0]) : nil }
         let energy = energies.isEmpty ? 0.5 : energies.reduce(0, +) / Double(energies.count)
         let scale = 1 + style.followEnergy * (0.5 - energy)

@@ -9,6 +9,7 @@ struct InspectorPane: View {
     var media: MediaController
     var song: SongController
     var cut: CutController
+    var ai: AIController
     var selectedClipID: String?
     @Binding var errorMessage: String?
     @Environment(\.undoManager) private var undoManager
@@ -19,11 +20,11 @@ struct InspectorPane: View {
                 if let shot = cut.selectedShot {
                     ShotInspector(shot: shot, project: document.project, media: media, cut: cut)
                 } else if let id = selectedClipID, let clip = document.project.clip(withID: id) {
-                    ClipInspector(clip: clip, project: document.project, media: media) { command in
+                    ClipInspector(clip: clip, project: document.project, media: media, ai: ai) { command in
                         errorMessage = document.run(command, undoManager: undoManager)
                     }
                 } else {
-                    ProjectInspector(document: document, song: song, errorMessage: $errorMessage)
+                    ProjectInspector(document: document, song: song, ai: ai, errorMessage: $errorMessage)
                 }
             }
             .padding(14)
@@ -40,6 +41,7 @@ private struct ClipInspector: View {
     var clip: Clip
     var project: Project
     var media: MediaController
+    var ai: AIController
     var run: (any EditCommand) -> Void
     @State private var description = ""
     @State private var tags = ""
@@ -64,6 +66,26 @@ private struct ClipInspector: View {
             .focused($focus, equals: .tags)
             .onSubmit(commitTags)
             .accessibilityIdentifier("clip.tags")
+        if let mood = clip.mood, !mood.isEmpty {
+            Label("Stimmung: \(mood)", systemImage: "theatermasks").font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        HStack(alignment: .firstTextBaseline) {
+            if let model = clip.visionModel {
+                Text("Beschrieben von \(model)" + (clip.filenameSuggestion.map { " · Vorschlag: \($0)" } ?? ""))
+                    .font(.caption).foregroundStyle(.tertiary)
+                    .accessibilityIdentifier("clip.describedBy")
+            }
+            Spacer()
+            Button(clip.description.isEmpty ? "Beschreiben" : "Neu beschreiben", systemImage: "text.viewfinder") {
+                ai.describe([clip.id], replacing: !clip.description.isEmpty)
+            }
+            .controlSize(.small)
+            .fixedSize()
+            .disabled(ai.describing || clip.scenes.isEmpty)
+            .help("Bildbeschreibung mit dem gewählten Anbieter (Einstellungen → Anbieter)")
+            .accessibilityIdentifier("clip.describe")
+        }
         HStack {
             StarRating(rating: clip.rating) { run(SetClipRating(clipID: clip.id, rating: $0)) }
             Spacer()
@@ -226,6 +248,7 @@ struct StarRating: View {
 private struct ProjectInspector: View {
     @ObservedObject var document: ProjectDocument
     var song: SongController
+    var ai: AIController
     @Binding var errorMessage: String?
     @Environment(\.undoManager) private var undoManager
     @State private var name = ""
@@ -303,6 +326,9 @@ private struct ProjectInspector: View {
         .onAppear { lyrics = project.lyricsText }
         .onChange(of: project.lyricsText) { _, new in if !editingLyrics { lyrics = new } }
         .onChange(of: editingLyrics) { _, editing in if !editing { commitLyrics() } }
+        DirectorSection(project: project, ai: ai) { command in
+            errorMessage = document.run(command, undoManager: undoManager)
+        }
         if let cut = project.cut {
             InspectorSection("Schnitt") {
                 Fact("Variante", cut.name)

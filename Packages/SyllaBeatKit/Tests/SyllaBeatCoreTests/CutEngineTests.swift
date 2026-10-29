@@ -27,9 +27,25 @@ import Testing
         #expect(failures.isEmpty, "\(failures.prefix(5))")
     }
 
+    /// Zufällige Ähnlichkeiten für Zeilen und (bei Storyboard) Abschnitte.
+    static func scores(_ project: Project, seed: UInt64) -> TextScores {
+        var random = SeededRandom([seed, 0x5C0])
+        let scenes = project.clips.flatMap { $0.scenes.map(\.id) }
+        func row() -> [String: Float] {
+            Dictionary(uniqueKeysWithValues: scenes.map { ($0, Float(random.unit()) * 0.2) })
+        }
+        let lines = Dictionary(uniqueKeysWithValues: (project.analysis?.lines ?? []).map { ($0.id, row()) })
+        let sections = Dictionary(
+            uniqueKeysWithValues: (project.storyboard?.sections ?? []).map { ($0.sectionID, row()) })
+        return TextScores(lines, sections: sections)
+    }
+
     static func check(seed: UInt64) -> [String] {
         let project = SyntheticProject.make(seed: seed)
-        guard let cut = CutEngine.generate(project, style: project.style) else { return ["Seed \(seed): kein Schnitt"] }
+        let scores = Self.scores(project, seed: seed)
+        guard let cut = CutEngine.generate(project, style: project.style, textScores: scores) else {
+            return ["Seed \(seed): kein Schnitt"]
+        }
         var issues = CutValidator.validate(project, cut: cut).map { "Seed \(seed): \($0)" }
         // Abschnittsgrenzen sind Pflichtschnitte (außer direkt vor dem Songende, das dann verschmilzt); ein Wortanfang
         // darf sie um höchstens 80 ms verschieben.
@@ -44,7 +60,7 @@ import Testing
             }
         }
         // I6: Determinismus.
-        if CutEngine.generate(project, style: project.style) != cut {
+        if CutEngine.generate(project, style: project.style, textScores: scores) != cut {
             issues.append("Seed \(seed): I6 nicht deterministisch")
         }
         // I5: zwei Shots fixieren, neu würfeln.
@@ -56,7 +72,9 @@ import Testing
         locked.cut = withLocks
         var style = project.style
         style.seed &+= 1
-        if let rerolled = CutEngine.generate(locked, style: style, keep: withLocks.shots.filter(\.locked)) {
+        if let rerolled = CutEngine.generate(
+            locked, style: style, textScores: scores, keep: withLocks.shots.filter(\.locked))
+        {
             issues += CutValidator.validate(locked, cut: rerolled, previous: withLocks).map {
                 "Seed \(seed) neu: \($0)"
             }

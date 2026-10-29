@@ -10,30 +10,16 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettings().tabItem { Label("Allgemein", systemImage: "gearshape") }
-            PlannedSettings(
-                title: "Modelle", systemImage: "cpu",
-                detail:
-                    "Hier stehen bald alle Modelle pro Aufgabe, mit Größe, RAM-Bedarf, Lizenz und der Empfehlung für diesen Mac."
-            )
-            .tabItem { Label("Modelle", systemImage: "cpu") }
-            PlannedSettings(
-                title: "Anbieter", systemImage: "network",
-                detail:
-                    "Lokal (MLX, Apple Foundation Models), Ollama, LM Studio und Cloud-Anbieter mit Schlüssel im Schlüsselbund."
-            )
-            .tabItem { Label("Anbieter", systemImage: "network") }
+            ModelSettings().tabItem { Label("Modelle", systemImage: "cpu") }
+            ProviderSettings().tabItem { Label("Anbieter", systemImage: "network") }
             PlannedSettings(
                 title: "Export", systemImage: "square.and.arrow.up",
                 detail: "Standardziel (Final Cut Pro, DaVinci Resolve, Premiere), Marker und Schlagwörter."
             )
             .tabItem { Label("Export", systemImage: "square.and.arrow.up") }
-            PlannedSettings(
-                title: "Datenschutz", systemImage: "hand.raised",
-                detail: "Was an Cloud-Anbieter gesendet werden darf. Videos verlassen den Mac nie."
-            )
-            .tabItem { Label("Datenschutz", systemImage: "hand.raised") }
+            PrivacySettings().tabItem { Label("Datenschutz", systemImage: "hand.raised") }
         }
-        .frame(width: 560, height: 420)
+        .frame(width: 600, height: 520)
     }
 }
 
@@ -107,7 +93,7 @@ private struct ComponentRow: View {
     }
 }
 
-/// Modelle je Aufgabe. Volle Verwaltung (RAM-Empfehlung, Speicherort) folgt mit M5.
+/// Modelle je Aufgabe mit Größe, Speicherbedarf, Lizenz und der Empfehlung für diesen Mac (F-15).
 private struct ModelSettings: View {
     @Environment(AppServices.self) private var services
     @AppStorage("transcriptionLanguage") private var language = "de"
@@ -141,7 +127,7 @@ private struct ModelSettings: View {
                 Toggle("Nach der Songanalyse automatisch erkennen", isOn: $autoTranscribe)
             }
             Section("Bildsuche") {
-                ForEach(ModelCatalog.all) { package in
+                ForEach(ModelCatalog.all.filter { $0.task == .embedding }) { package in
                     LabeledContent {
                         if services.installing.contains(package.id) {
                             ProgressView().controlSize(.small)
@@ -160,10 +146,86 @@ private struct ModelSettings: View {
                 }
             }
             Section {
+                LabeledContent {
+                    Text(AppleIntelligenceProvider.availability.reason).foregroundStyle(.secondary)
+                } label: {
+                    Text("Apple Intelligence")
+                    Text("eingebaut, kein Download · Text, Bilder ab macOS 27")
+                }
+                ForEach([ModelCatalog.qwen3VL8bit, ModelCatalog.qwen3VL4bit]) { package in
+                    PackageRow(package: package, recommended: package == ModelCatalog.recommendedVision())
+                }
+            } header: {
+                Text("Bildbeschreibung und Regie")
+            } footer: {
+                Text(
+                    "Dieser Mac hat \(Format.bytes(ProcessInfo.processInfo.physicalMemory)) Arbeitsspeicher. Lokale Modelle laufen im Inferenzdienst und werden nach zwei Minuten Ruhe entladen."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
                 FolderRow(title: "Ort", url: Locations.models)
+                LabeledContent("Speicherort") {
+                    HStack {
+                        Button("Ändern …", action: chooseFolder)
+                        if UserDefaults.standard.string(forKey: "modelsFolder") != nil {
+                            Button("Standard") {
+                                UserDefaults.standard.removeObject(forKey: "modelsFolder")
+                                services.refreshModels()
+                            }
+                        }
+                    }
+                }
+            } footer: {
+                Text("Bereits geladene Modelle bleiben am alten Ort und werden dort nicht mehr gefunden.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Als Modellordner wählen"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        UserDefaults.standard.set(url.path, forKey: "modelsFolder")
+        services.refreshModels()
+    }
+}
+
+/// Ein ladbares Modell mit Größe, Speicherbedarf, Status und „Empfohlen für deinen Mac“.
+private struct PackageRow: View {
+    var package: ModelPackage
+    var recommended: Bool
+    @Environment(AppServices.self) private var services
+
+    var body: some View {
+        let _ = services.installGeneration
+        LabeledContent {
+            if services.installing.contains(package.id) {
+                ProgressView().controlSize(.small)
+            } else if package.isInstalled {
+                Button("Löschen", role: .destructive) { services.uninstall(package) }
+            } else {
+                Button("Laden (\(Format.bytes(UInt64(package.downloadBytes))))") { services.install(package) }
+                    .accessibilityIdentifier("model.install.\(package.id)")
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(package.title)
+                if recommended {
+                    Text("Empfohlen für deinen Mac").font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(.tint.opacity(0.2), in: Capsule())
+                }
+            }
+            Text(
+                "\(package.license) · \(package.isInstalled ? "geladen" : "nicht geladen") · bis \(Format.bytes(UInt64(package.memoryBytes))) Arbeitsspeicher · läuft lokal"
+            )
+        }
     }
 }
 

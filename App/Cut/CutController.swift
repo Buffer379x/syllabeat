@@ -113,26 +113,43 @@ final class CutController {
 
     // MARK: - Text ↔ Bild
 
-    /// Ähnlichkeit jeder Textzeile zu allen Szenen (SigLIP 2 im Inferenzdienst). Ohne Bildsuche bleibt sie leer und
-    /// die Engine schneidet nach Energie, Ästhetik und Abwechslung.
+    /// Ähnlichkeiten für die Engine (SigLIP 2 im Inferenzdienst): jede Textzeile und, mit Storyboard, die
+    /// Suchbegriffe jedes Abschnitts gegen alle Szenen; Beschreibungen geben einen Zuschlag. Ohne Bildsuche bleibt
+    /// alles leer und die Engine schneidet nach Energie, Ästhetik und Abwechslung.
     func refreshTextScores() async {
-        guard let analysis = project?.analysis, MediaController.model.isInstalled, let index = media.sceneIndex,
+        guard let project else { return }
+        textScores = await scores(for: project.storyboard, in: project)
+    }
+
+    func scores(for storyboard: Storyboard?, in project: Project) async -> TextScores {
+        guard let analysis = project.analysis, MediaController.model.isInstalled, let index = media.sceneIndex,
             !index.isEmpty
-        else {
-            textScores = TextScores()
-            return
-        }
-        let client = services.inference
+        else { return TextScores() }
+        let descriptions = StoryScores.descriptions(of: project)
         var values: [String: [String: Float]] = [:]
         for line in analysis.lines {
             let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { continue }
-            if lineVectors[text] == nil {
-                lineVectors[text] = try? await client.embedText(model: MediaController.model.id, text: text)
-            }
-            if let vector = lineVectors[text] { values[line.id] = index.similarities(query: vector) }
+            guard !text.isEmpty, let vector = await embed(text) else { continue }
+            var row = index.similarities(query: vector)
+            StoryScores.addBonus(to: &row, words: StoryScores.words(text), descriptions: descriptions)
+            values[line.id] = row
         }
-        textScores = TextScores(values)
+        var sections: [String: [String: Float]] = [:]
+        if let storyboard {
+            sections =
+                (try? await StoryScores.compute(storyboard, index: index, descriptions: descriptions) { text in
+                    await self.embed(text) ?? []
+                }) ?? [:]
+        }
+        return TextScores(values, sections: sections)
+    }
+
+    /// Text-Embedding mit Zwischenspeicher (gleicher Text, gleicher Vektor).
+    private func embed(_ text: String) async -> [Float]? {
+        if let cached = lineVectors[text] { return cached }
+        let vector = try? await services.inference.embedText(model: MediaController.model.id, text: text)
+        if let vector { lineVectors[text] = vector }
+        return vector
     }
 
     // MARK: - Vorschau

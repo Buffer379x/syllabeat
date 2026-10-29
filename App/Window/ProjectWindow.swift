@@ -10,17 +10,20 @@ struct ProjectWindow: View {
     @State private var media: MediaController?
     @State private var song: SongController?
     @State private var cut: CutController?
+    @State private var ai: AIController?
 
     var body: some View {
-        if let media, let song, let cut {
-            ProjectWorkspace(document: document, media: media, song: song, cut: cut)
+        if let media, let song, let cut, let ai {
+            ProjectWorkspace(document: document, media: media, song: song, cut: cut, ai: ai)
         } else {
             Color.clear.onAppear {
                 let media = MediaController(document: document, services: services)
                 let song = SongController(document: document, services: services)
+                let cut = CutController(document: document, services: services, media: media, playback: song.playback)
                 self.media = media
                 self.song = song
-                cut = CutController(document: document, services: services, media: media, playback: song.playback)
+                self.cut = cut
+                ai = AIController(document: document, services: services, media: media, cut: cut)
             }
         }
     }
@@ -32,6 +35,7 @@ struct ProjectWorkspace: View {
     var media: MediaController
     var song: SongController
     var cut: CutController
+    var ai: AIController
     @Environment(\.undoManager) private var undoManager
     @Environment(\.documentConfiguration) private var configuration
     @State private var selectedClipID: String?
@@ -55,6 +59,17 @@ struct ProjectWorkspace: View {
             if let message = song.message {
                 Banner(text: message, systemImage: "music.note", identifier: "songBanner") { song.message = nil }
             }
+            if let message = ai.message {
+                Banner(text: message, systemImage: "sparkles", identifier: "aiBanner") { ai.message = nil }
+            }
+            if ai.offerImprovement {
+                Banner(
+                    text:
+                        "Neue Bildbeschreibungen liegen vor. Schnitt damit verbessern? Fixierte Einstellungen bleiben.",
+                    systemImage: "wand.and.stars", identifier: "improveBanner", actionTitle: "Verbessern",
+                    action: { ai.improveCut() }
+                ) { ai.offerImprovement = false }
+            }
             VSplitView {
                 HSplitView {
                     LibraryPane(project: project, media: media, selection: $selectedClipID)
@@ -63,7 +78,8 @@ struct ProjectWorkspace: View {
                         .frame(minWidth: 380, maxWidth: .infinity)
                     if showsInspector {
                         InspectorPane(
-                            document: document, media: media, song: song, cut: cut, selectedClipID: selectedClipID,
+                            document: document, media: media, song: song, cut: cut, ai: ai,
+                            selectedClipID: selectedClipID,
                             errorMessage: $errorMessage
                         )
                         .frame(minWidth: 250, idealWidth: 290, maxWidth: 460)
@@ -98,6 +114,7 @@ struct ProjectWorkspace: View {
         .task {
             media.undoManager = undoManager
             cut.undoManager = undoManager
+            ai.undoManager = undoManager
             media.start()
             song.songChanged()
             // Automatisierung (UI-Tests): `-SBImportPaths "<Pfad>|<Pfad>"` importiert beim Öffnen.
@@ -108,10 +125,26 @@ struct ProjectWorkspace: View {
         .onChange(of: undoManager) { _, manager in
             media.undoManager = manager
             cut.undoManager = manager
+            ai.undoManager = manager
         }
         .onChange(of: project.song) { _, _ in song.songChanged() }
         // Autopilot: erster Schnitt, sobald Song und Clips fertig analysiert sind.
-        .onChange(of: autopilotSignal, initial: true) { _, _ in cut.autopilotIfReady() }
+        .onChange(of: autopilotSignal, initial: true) { _, _ in
+            cut.autopilotIfReady()
+            // Beschreibungen erst nach dem ersten Schnitt (oder wenn es keinen geben kann), damit er nicht wartet.
+            if project.cut != nil || !cut.canCut { ai.autoDescribeIfReady() }
+        }
+        .onChange(of: project.cut == nil) { _, _ in ai.autoDescribeIfReady() }
+        .sheet(item: Bindable(ai).consentRequest) { request in
+            ConsentSheet(request: request) {
+                ai.grantConsent(request)
+            } cancel: {
+                ai.consentRequest = nil
+            }
+        }
+        .sheet(item: Bindable(ai).manualExchange) { exchange in
+            ManualExchangeSheet(exchange: exchange, ai: ai)
+        }
         .onChange(of: previewSignal, initial: true) { _, _ in cut.updatePreview() }
         .task(id: textSignal) { await cut.refreshTextScores() }
         // Clip oder Einstellung: Der Inspektor zeigt immer nur eines davon.
@@ -152,8 +185,13 @@ struct ProjectWorkspace: View {
             duration: project.analysis?.duration)
     }
 
+    /// Ändert sich, wenn die Ähnlichkeiten für die Engine neu zu berechnen sind (Bildsuche, Text, Storyboard,
+    /// Beschreibungen).
     private var textSignal: String {
-        "\(media.sceneIndex?.count ?? 0)#\(project.analysis?.lines.map(\.text).joined(separator: "|") ?? "")"
+        let lines = project.analysis?.lines.map(\.text).joined(separator: "|") ?? ""
+        let terms = project.storyboard?.sections.flatMap(\.searchTerms).joined(separator: "|") ?? ""
+        let described = project.clips.filter { !$0.description.isEmpty }.count
+        return "\(media.sceneIndex?.count ?? 0)#\(lines)#\(terms)#\(described)"
     }
 
     private var subtitle: String {
@@ -207,12 +245,17 @@ struct Banner: View {
     var text: String
     var systemImage: String
     var identifier: String
+    var actionTitle: String?
+    var action: (() -> Void)?
     var close: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage).foregroundStyle(.tint)
             Text(text).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action).controlSize(.small)
+            }
             Button(action: close) { Image(systemName: "xmark") }
                 .buttonStyle(.borderless)
                 .help("Hinweis schließen")

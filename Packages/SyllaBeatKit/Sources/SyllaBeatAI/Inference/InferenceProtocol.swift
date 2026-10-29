@@ -18,6 +18,28 @@ public enum InferenceRequest: Codable, Sendable, Equatable {
     case transcribe(path: String, language: String?)
     /// Lädt das Transkriptionsmodell und kompiliert es für die Neural Engine.
     case installTranscription
+    /// Text (und optional Bilder) mit einem lokalen MLX-Modell aus `folder` erzeugen.
+    case generate(GenerateParameters)
+}
+
+public struct GenerateParameters: Codable, Sendable, Equatable {
+    public var folder: String
+    public var instructions: String
+    public var prompt: String
+    public var images: [String]
+    public var maxTokens: Int
+    public var temperature: Double
+
+    public init(
+        folder: String, instructions: String, prompt: String, images: [String], maxTokens: Int, temperature: Double
+    ) {
+        self.folder = folder
+        self.instructions = instructions
+        self.prompt = prompt
+        self.images = images
+        self.maxTokens = maxTokens
+        self.temperature = temperature
+    }
 }
 
 public struct InferenceStatus: Codable, Sendable, Equatable {
@@ -44,6 +66,7 @@ public enum InferenceResponse: Codable, Sendable, Equatable {
     /// Ein Vektor je Eingabe; ein leerer Vektor heißt: Eingabe nicht lesbar.
     case vectors([[Float]])
     case words([RecognizedWord])
+    case text(String)
     case done
     case failure(String)
 }

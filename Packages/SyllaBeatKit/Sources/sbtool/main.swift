@@ -14,7 +14,8 @@ let usage = """
       probe <Datei> …            technische Daten von Videos
       truth <Ordner>             Metadaten und Schnitte gegen clips.truth.json prüfen
       import <Ordner> [<aus>] [--parallel N]   Ordner analysieren (Zeitmessung), optional als Projekt sichern
-      model-install [<Ordner>]   SigLIP 2 laden (oder aus einem Ordner mit den ZIP-Dateien)
+      model-install [<ID>] [<Ordner>]   Modell laden und prüfen (Standard SigLIP 2; qwen3-vl-4b-8bit, qwen3-vl-4b-4bit);
+                                 mit Ordner aus lokalen Dateien statt aus dem Netz
       embed <Projekt>            fehlende Szenen-Embeddings berechnen
       search <Projekt> <Text>    semantische Suche, beste 5 Clips
 
@@ -23,8 +24,12 @@ let usage = """
       bench-timeline             Zeichenzeit der Timeline (6 min, 720 Beats) messen
       bench-cut                  Schnitt-Engine mit 500 Clips und 6-min-Song messen (E10)
       validate <Projekt>         Schnitt prüfen: Invarianten, Anker, Refrain-Kopien
-      autocut <Projekt> <Song>   Song analysieren und ersten Schnitt erzeugen (Autopilot ohne App)
+      autocut <Projekt> <Song> [<Songtext>]   Song analysieren (optional Text ausrichten) und schneiden
       preview <Projekt>          Vorschau-Komposition aufbauen und prüfen
+      storyboard <Projekt> [--laeufe N] [--anbieter apple|ollama=…|anthropic] [--regie "…"] [--sichern]
+                                 KI-Regie Stufe 1 ausführen und messen
+      beschreiben <Projekt> [<Anbieter>] [<Anzahl>]   Bildbeschreibungen für Clips ohne Beschreibung
+      vergleich <Projekt> <Regieanweisung> <Ordner>   Blindvergleich ohne/mit Storyboard (Kontaktbogen)
       bench-preview <Ordner>     Vorschau-Neuaufbau mit 500 Dateien messen (Ordner: tests/Fixtures/media)
       wordtruth <Ordner>         Transkription, Wortzeit-Korrektur und Ausrichtung gegen *.truth.json bewerten
     """
@@ -133,7 +138,7 @@ do {
             rest.removeSubrange(flag...(flag + 1))
         }
         try await importFolder(arguments[1], output: rest.first, parallel: parallel)
-    case ("model-install", 1...2): try await installModel(source: arguments.count == 2 ? arguments[1] : nil)
+    case ("model-install", 1...3): try await installModel(Array(arguments.dropFirst()))
     case ("embed", 2): try await embedProject(arguments[1])
     case ("song", 2): try await analyzeSong(arguments[1])
     case ("songtruth", 2): try await evaluateSongs(arguments[1])
@@ -142,7 +147,15 @@ do {
     case ("bench-cut", 1): try benchCut()
     case ("validate", 2): try validateCut(arguments[1])
     case ("autocut", 3): try await autocut(arguments[1], song: arguments[2])
+    case ("autocut", 4): try await autocut(arguments[1], song: arguments[2], lyrics: arguments[3])
     case ("preview", 2): try await previewProject(arguments[1])
+    case ("beschreiben", 2...4):
+        try await describeCommand(
+            arguments[1], spec: arguments.count > 2 ? arguments[2] : "apple",
+            limit: arguments.count > 3 ? Int(arguments[3]) ?? 5 : 1000)
+    case ("storyboard", 2...): try await storyboardCommand(Array(arguments.dropFirst()))
+    case ("vergleich", 4):
+        try await compareStoryboard(arguments[1], brief: arguments[2], output: arguments[3])
     case ("bench-preview", 2): try await benchPreview(fixtures: URL(fileURLWithPath: arguments[1]))
     case ("search", 3...): try await search(arguments[1], query: arguments.dropFirst(2).joined(separator: " "))
     default:

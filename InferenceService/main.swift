@@ -4,6 +4,7 @@ import Darwin
 import Foundation
 import SyllaBeatAI
 import SyllaBeatCore
+import SyllaBeatMLX
 import SyllaBeatModels
 import Synchronization
 import XPC
@@ -61,6 +62,7 @@ func residentMemory() -> UInt64 {
 actor Engine {
     private var siglip: SiglipEmbedder?
     private var whisper: WhisperTranscriber?
+    private let mlx = MLXGenerator()
 
     private func transcriber() async throws -> WhisperTranscriber {
         if let whisper { return whisper }
@@ -95,6 +97,13 @@ actor Engine {
             case .installTranscription:
                 try await WhisperTranscriber.install()
                 return .done
+            case .generate(let parameters):
+                return .text(
+                    try await mlx.generate(
+                        folder: URL(fileURLWithPath: parameters.folder, isDirectory: true),
+                        instructions: parameters.instructions, prompt: parameters.prompt,
+                        images: parameters.images.map { URL(fileURLWithPath: $0) }, maxTokens: parameters.maxTokens,
+                        temperature: parameters.temperature))
             }
         } catch {
             return .failure(error.localizedDescription)

@@ -11,6 +11,11 @@ public actor InferenceClient {
         self.serviceName = serviceName
     }
 
+    /// Eine offene Sitzung muss vor dem Freigeben beendet werden, sonst bricht XPC den Prozess ab.
+    deinit {
+        session?.cancel(reason: "Client freigegeben")
+    }
+
     public func status() async throws -> InferenceStatus {
         switch try await send(.ping) {
         case .status(let status): return status
@@ -41,6 +46,14 @@ public actor InferenceClient {
     public func installTranscription() async throws {
         switch try await send(.installTranscription) {
         case .done: return
+        case .failure(let reason): throw InferenceError.remote(reason)
+        default: throw InferenceError.unexpectedReply
+        }
+    }
+
+    public func generate(_ parameters: GenerateParameters) async throws -> String {
+        switch try await send(.generate(parameters)) {
+        case .text(let text): return text
         case .failure(let reason): throw InferenceError.remote(reason)
         default: throw InferenceError.unexpectedReply
         }
@@ -89,6 +102,7 @@ public actor InferenceClient {
     }
 
     private func dropSession() {
+        session?.cancel(reason: "Sitzung beendet")
         session = nil
     }
 }

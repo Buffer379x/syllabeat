@@ -88,8 +88,15 @@ func importFolder(_ folder: String, output: String?, parallel: Int) async throws
     }
 }
 
-func installModel(source: String?) async throws {
-    let package = ModelCatalog.siglip2
+/// `arguments`: optional die Modell-ID (Standard SigLIP 2), optional ein Ordner mit denselben Dateien statt des Servers.
+func installModel(_ arguments: [String]) async throws {
+    var rest = arguments
+    var package = ModelCatalog.siglip2
+    if let first = rest.first, let found = ModelCatalog.package(id: first) {
+        package = found
+        rest.removeFirst()
+    }
+    let source = rest.first
     try await package.install(from: source.map { URL(fileURLWithPath: $0) }) { fraction in
         FileHandle.standardError.write(Data(String(format: "\r%3.0f %%", fraction * 100).utf8))
     }

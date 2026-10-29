@@ -296,3 +296,22 @@ public struct SetFit: EditCommand {
         project.timeline.fit = fit
     }
 }
+
+/// Storyboard übernehmen (oder mit `nil` entfernen) und den Schnitt danach neu bestimmen; fixierte Shots bleiben.
+/// Ein Undo-Schritt für beides.
+public struct ApplyStoryboard: EditCommand {
+    public var storyboard: Storyboard?
+    public var textScores: TextScores
+    public init(storyboard: Storyboard?, textScores: TextScores = TextScores()) {
+        self.storyboard = storyboard
+        self.textScores = textScores
+    }
+
+    public var actionName: String { storyboard == nil ? "Storyboard entfernen" : "Storyboard übernehmen" }
+
+    public func apply(to project: inout Project) throws {
+        project.storyboard = storyboard
+        guard project.analysis != nil, project.cut != nil else { return }
+        try project.regenerate(style: project.style, textScores: textScores, keep: project.lockedShots)
+    }
+}

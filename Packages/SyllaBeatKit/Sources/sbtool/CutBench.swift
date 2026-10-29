@@ -2,6 +2,7 @@ import Foundation
 import SyllaBeatAudio
 import SyllaBeatCore
 import SyllaBeatMedia
+import SyllaBeatModels
 import SyllaBeatUI
 
 /// E10: 500 Clips, 6-min-Song. Misst Erzeugen, Neu würfeln mit fixierten Shots und Teilneuberechnung je Preset.
@@ -163,20 +164,30 @@ func validateCut(_ path: String) throws {
     }
 }
 
-/// Wie der Autopilot ohne App: Song analysieren, ins Projekt setzen, ersten Schnitt erzeugen, sichern.
-func autocut(_ path: String, song: String) async throws {
+/// Wie der Autopilot ohne App: Song analysieren, ins Projekt setzen, ersten Schnitt erzeugen, sichern. Mit Songtext
+/// zusätzlich Gesang erkennen (Whisper), Wortzeiten korrigieren und den Text ausrichten.
+func autocut(_ path: String, song: String, lyrics: String? = nil) async throws {
     var project = try load(path).project
     let start = DispatchTime.now().uptimeNanoseconds
     let output = try await SongAnalyzer().analyze(URL(fileURLWithPath: song))
     project.song = MediaRef(path: song)
     project.analysis = output.analysis
+    if let lyrics {
+        let text = try String(contentsOfFile: lyrics, encoding: .utf8)
+        let raw = try await WhisperTranscriber().transcribe(path: song, language: "de")
+        let audio = try await AudioDecoder.decodeMono(URL(fileURLWithPath: song))
+        let corrected = WordTiming.correct(raw, spectrum: Spectrum(audio))
+        project.lyricsText = text
+        project.analysis = LyricsWorkflow.apply(transcript: corrected, lyrics: text, to: output.analysis)
+        print("Songtext: \(project.analysis?.lines.count ?? 0) Zeilen, \(project.analysis?.words.count ?? 0) Wörter")
+    }
     let analyzed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9
     try GenerateCut().apply(to: &project)
     let total = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9
     print(
         String(
             format: "Song %.0f s, %.1f BPM, %d Abschnitte (%.2f s); Schnitt mit %d Einstellungen nach %.2f s",
-            output.analysis.duration, output.analysis.tempo, output.analysis.sections.count, analyzed,
+            output.analysis.duration, output.analysis.tempo, project.analysis?.sections.count ?? 0, analyzed,
             project.cut?.shots.count ?? 0, total))
     try ProjectFile.encode(project).write(to: URL(fileURLWithPath: path), options: .atomic)
 }

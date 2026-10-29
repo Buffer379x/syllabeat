@@ -24,6 +24,7 @@ bf_app_core, bf_app_ai, bf_inf_core, bf_inf_ai = I("bf.app.core"), I("bf.app.ai"
 bf_embed = I("bf.embed")
 dep_app_media, bf_app_media = I("d.app.media"), I("bf.app.media")
 dep_inf_models, bf_inf_models = I("d.inf.models"), I("bf.inf.models")
+dep_inf_mlx, bf_inf_mlx = I("d.inf.mlx"), I("bf.inf.mlx")
 dep_app_audio, bf_app_audio = I("d.app.audio"), I("bf.app.audio")
 dep_app_ui, bf_app_ui = I("d.app.ui"), I("bf.app.ui")
 ph = {k: I("ph."+k) for k in ["app.src","app.fw","app.res","app.embed","inf.src","inf.fw","inf.res","ui.src","ui.fw","ui.res"]}
@@ -97,6 +98,7 @@ txt = f"""// !$*UTF8*$!
 \t\t{bf_inf_ai} /* SyllaBeatAI in Frameworks */ = {{isa = PBXBuildFile; productRef = {dep_inf_ai} /* SyllaBeatAI */; }};
 \t\t{bf_app_media} /* SyllaBeatMedia in Frameworks */ = {{isa = PBXBuildFile; productRef = {dep_app_media} /* SyllaBeatMedia */; }};
 \t\t{bf_inf_models} /* SyllaBeatModels in Frameworks */ = {{isa = PBXBuildFile; productRef = {dep_inf_models} /* SyllaBeatModels */; }};
+\t\t{bf_inf_mlx} /* SyllaBeatMLX in Frameworks */ = {{isa = PBXBuildFile; productRef = {dep_inf_mlx} /* SyllaBeatMLX */; }};
 \t\t{bf_app_audio} /* SyllaBeatAudio in Frameworks */ = {{isa = PBXBuildFile; productRef = {dep_app_audio} /* SyllaBeatAudio */; }};
 \t\t{bf_app_ui} /* SyllaBeatUI in Frameworks */ = {{isa = PBXBuildFile; productRef = {dep_app_ui} /* SyllaBeatUI */; }};
 \t\t{bf_embed} /* SyllaBeatInference.xpc in Embed XPC Services */ = {{isa = PBXBuildFile; fileRef = {p_inf} /* SyllaBeatInference.xpc */; settings = {{ATTRIBUTES = (RemoveHeadersOnCopy, ); }}; }};
@@ -171,6 +173,7 @@ txt = f"""// !$*UTF8*$!
 \t\t\t\t{bf_inf_core} /* SyllaBeatCore in Frameworks */,
 \t\t\t\t{bf_inf_ai} /* SyllaBeatAI in Frameworks */,
 \t\t\t\t{bf_inf_models} /* SyllaBeatModels in Frameworks */,
+\t\t\t\t{bf_inf_mlx} /* SyllaBeatMLX in Frameworks */,
 \t\t\t);
 \t\t\trunOnlyForDeploymentPostprocessing = 0;
 \t\t}};
@@ -270,6 +273,7 @@ txt = f"""// !$*UTF8*$!
 \t\t\t\t{dep_inf_core} /* SyllaBeatCore */,
 \t\t\t\t{dep_inf_ai} /* SyllaBeatAI */,
 \t\t\t\t{dep_inf_models} /* SyllaBeatModels */,
+\t\t\t\t{dep_inf_mlx} /* SyllaBeatMLX */,
 \t\t\t);
 \t\t\tproductName = SyllaBeatInference;
 \t\t\tproductReference = {p_inf} /* SyllaBeatInference.xpc */;
@@ -407,7 +411,7 @@ txt = f"""// !$*UTF8*$!
 \t\t\tpackage = {pkg} /* XCLocalSwiftPackageReference "Packages/SyllaBeatKit" */;
 \t\t\tproductName = {prod};
 \t\t}};
-""" for d, prod in [(dep_app_core,"SyllaBeatCore"),(dep_app_ai,"SyllaBeatAI"),(dep_inf_core,"SyllaBeatCore"),(dep_inf_ai,"SyllaBeatAI"),(dep_app_media,"SyllaBeatMedia"),(dep_inf_models,"SyllaBeatModels"),(dep_app_audio,"SyllaBeatAudio"),(dep_app_ui,"SyllaBeatUI")]) + f"""/* End XCSwiftPackageProductDependency section */
+""" for d, prod in [(dep_app_core,"SyllaBeatCore"),(dep_app_ai,"SyllaBeatAI"),(dep_inf_core,"SyllaBeatCore"),(dep_inf_ai,"SyllaBeatAI"),(dep_app_media,"SyllaBeatMedia"),(dep_inf_models,"SyllaBeatModels"),(dep_inf_mlx,"SyllaBeatMLX"),(dep_app_audio,"SyllaBeatAudio"),(dep_app_ui,"SyllaBeatUI")]) + f"""/* End XCSwiftPackageProductDependency section */
 \t}};
 \trootObject = {proj} /* Project object */;
 }}

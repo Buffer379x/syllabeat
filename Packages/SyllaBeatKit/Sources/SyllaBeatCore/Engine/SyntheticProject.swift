@@ -83,8 +83,21 @@ public enum SyntheticProject {
         style.refrainMode = CutStyle.RefrainMode.allCases[int(0...2)]
         style.alignToWords = random.unit() < 0.5
         let fps = [Rational(25), Rational(24000, 1001), Rational(30), Rational(60000, 1001)][int(0...3)]
-        return Project(
+        // Jedes dritte Projekt mit Storyboard (Schnitttempo je Abschnitt).
+        let storyboard: Storyboard? =
+            random.unit() < 0.33
+            ? Storyboard(
+                idea: "Test",
+                sections: sections.map { section in
+                    Storyboard.SectionPlan(
+                        sectionID: section.id, mood: "ruhig", imageIdea: "", searchTerms: ["Meer"],
+                        pace: Storyboard.Pace.allCases[int(0...2)])
+                }, model: "Zufall", brief: "")
+            : nil
+        var project = Project(
             name: "Zufall \(seed)", timeline: TimelineSettings(fps: fps), clips: clips, analysis: analysis, style: style
         )
+        project.storyboard = storyboard
+        return project
     }
 }

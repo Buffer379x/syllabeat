@@ -196,3 +196,103 @@ final class CutReviewScreenshots: XCTestCase {
         add(attachment)
     }
 }
+
+/// Abnahme M5 mit echten Modellen (nur lokal): Storyboard mit Apple Intelligence, Bildbeschreibung mit Qwen3-VL über
+/// MLX im Inferenzdienst. Läuft nur mit `SB_REVIEW_AI=<Projekt mit Analyse, Clips und Schnitt>`.
+final class AIReviewScreenshots: XCTestCase {
+    override func setUpWithError() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SB_REVIEW_AI"] != nil, "nur für Abnahme-Fotos")
+    }
+
+    @MainActor
+    func testStoryboardAndDescription() throws {
+        let environment = ProcessInfo.processInfo.environment
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-SBOpenDocument", environment["SB_REVIEW_AI"]!, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages",
+            "(de)", "-AppleLocale", "de_DE", "-ai.director.provider", "appleIntelligence", "-ai.vision.provider", "mlx",
+            "-ai.autoDescribe", "NO",
+        ]
+        app.launch()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 15))
+        let brief = app.descendants(matching: .any).matching(identifier: "director.brief").firstMatch
+        XCTAssertTrue(brief.waitForExistence(timeout: 15))
+        brief.click()
+        brief.typeKey("a", modifierFlags: .command)
+        brief.typeText("Sommerliche Liebesgeschichte am Meer, Refrain bei Nacht, Ende im Sonnenuntergang\r")
+        var start = Date()
+        app.buttons["director.create"].click()
+        let idea = app.descendants(matching: .any).matching(identifier: "director.idea").firstMatch
+        XCTAssertTrue(idea.waitForExistence(timeout: 180), "kein Storyboard")
+        print("SB_REVIEW Storyboard mit Neuschnitt: \(String(format: "%.1f", Date().timeIntervalSince(start))) s")
+        sleep(2)
+        attach(window.screenshot(), "Storyboard")
+
+        let clip = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'clip.c-'"))
+            .firstMatch
+        XCTAssertTrue(clip.waitForExistence(timeout: 5))
+        clip.click()
+        let describe = app.buttons["clip.describe"]
+        XCTAssertTrue(describe.waitForExistence(timeout: 5))
+        start = Date()
+        describe.click()
+        let done = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier == 'clip.describedBy' AND (label CONTAINS 'qwen3-vl' OR value CONTAINS 'qwen3-vl')")
+        ).firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 300), "keine Beschreibung von Qwen3-VL")
+        print(
+            "SB_REVIEW Beschreibung mit Qwen3-VL (inkl. Laden): \(String(format: "%.1f", Date().timeIntervalSince(start))) s"
+        )
+        sleep(1)
+        attach(window.screenshot(), "Beschreibung")
+        app.typeKey("s", modifierFlags: .command)
+        sleep(1)
+    }
+
+    @MainActor
+    private func attach(_ screenshot: XCUIScreenshot, _ name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
+
+/// E8 (teilweise): Bildbeschreibung läuft, die App wird hart beendet und neu gestartet; die Aufgabe setzt fort und
+/// übernimmt Fertiges aus dem Zwischenspeicher. Läuft nur mit `SB_REVIEW_E8=<Projekt ohne Beschreibungen>`.
+final class ResumeReviewTests: XCTestCase {
+    override func setUpWithError() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SB_REVIEW_E8"] != nil, "nur zur Abnahme")
+    }
+
+    @MainActor
+    func testDescriptionsResumeAfterKill() throws {
+        let path = ProcessInfo.processInfo.environment["SB_REVIEW_E8"]!
+        func launch() -> XCUIApplication {
+            let app = XCUIApplication()
+            app.launchArguments = [
+                "-SBOpenDocument", path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
+                "-AppleLocale", "de_DE", "-ai.vision.provider", "appleIntelligence", "-ai.autoDescribe", "YES",
+            ]
+            app.launch()
+            XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+            return app
+        }
+        var app = launch()
+        sleep(15)
+        app.terminate()
+        print("SB_REVIEW App nach 15 s beendet (ohne Sichern)")
+        let start = Date()
+        app = launch()
+        let done = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS 'Clips beschrieben' OR value CONTAINS 'Clips beschrieben'")
+        ).firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 300), "Aufgabe nicht fortgesetzt")
+        print("SB_REVIEW Fortgesetzt und fertig nach \(Int(Date().timeIntervalSince(start))) s: \(done.label)")
+        app.typeKey("s", modifierFlags: .command)
+        sleep(1)
+        app.terminate()
+    }
+}

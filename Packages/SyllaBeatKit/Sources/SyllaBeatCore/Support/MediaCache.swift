@@ -36,6 +36,11 @@ public struct MediaCache: Sendable {
         folder(for: fingerprint).appendingPathComponent("embeddings-\(model).plist")
     }
 
+    /// Bildbeschreibung eines Clips (JSON), sobald sie fertig ist: übersteht Abbruch und Absturz der App.
+    public func description(fingerprint: String) -> URL {
+        folder(for: fingerprint).appendingPathComponent("description.json")
+    }
+
     public func prepare(fingerprint: String) throws -> URL {
         let url = folder(for: fingerprint)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

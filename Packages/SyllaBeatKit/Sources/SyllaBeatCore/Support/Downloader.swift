@@ -58,7 +58,8 @@ public enum Downloader {
 
     /// Lädt `item` nach `folder` und gibt die geprüfte Datei zurück.
     public static func fetch(
-        _ item: DownloadItem, into folder: URL, progress: @escaping @Sendable (Int64) -> Void = { _ in }
+        _ item: DownloadItem, into folder: URL, configuration: URLSessionConfiguration = .default,
+        progress: @escaping @Sendable (Int64) -> Void = { _ in }
     ) async throws -> URL {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let target = folder.appendingPathComponent(item.fileName)
@@ -66,17 +67,16 @@ public enum Downloader {
             progress(item.bytes)
             return target
         }
-        try? FileManager.default.removeItem(at: target)
         if item.url.isFileURL {
-            try FileManager.default.copyItem(at: item.url, to: target)
+            // Lokale Quelle (z. B. Hugging-Face-Zwischenspeicher): Verweise auflösen, die Datei selbst kopieren.
+            try? FileManager.default.removeItem(at: target)
+            try FileManager.default.copyItem(at: item.url.resolvingSymlinksInPath(), to: target)
         } else {
-            let delegate = ProgressDelegate(progress)
-            let (temporary, response) = try await URLSession.shared.download(from: item.url, delegate: delegate)
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                try? FileManager.default.removeItem(at: temporary)
-                throw DownloadError.http(http.statusCode)
-            }
-            try FileManager.default.moveItem(at: temporary, to: target)
+            // Fortsetzbar: Der Teil-Download liegt in `.part` und wird mit einer Range-Anfrage weitergeladen.
+            let partial = target.appendingPathExtension("part")
+            try await RangeDownload(url: item.url, file: partial, configuration: configuration, report: progress).run()
+            try? FileManager.default.removeItem(at: target)
+            try FileManager.default.moveItem(at: partial, to: target)
         }
         progress(item.bytes)
         guard try sha256(of: target) == item.sha256 else {
@@ -100,21 +100,89 @@ public enum Downloader {
     }
 }
 
-private final class ProgressDelegate: NSObject, URLSessionDownloadDelegate, Sendable {
+/// Lädt eine Datei in Teilen auf die Platte und setzt einen abgebrochenen Download fort (HTTP Range).
+final class RangeDownload: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    private let url: URL
+    private let file: URL
     private let report: @Sendable (Int64) -> Void
+    private let configuration: URLSessionConfiguration
+    private var handle: FileHandle?
+    private var written: Int64 = 0
+    private var continuation: CheckedContinuation<Void, any Error>?
+    private var failure: (any Error)?
 
-    init(_ report: @escaping @Sendable (Int64) -> Void) {
+    init(url: URL, file: URL, configuration: URLSessionConfiguration, report: @escaping @Sendable (Int64) -> Void) {
+        self.url = url
+        self.file = file
+        self.configuration = configuration
         self.report = report
     }
 
-    func urlSession(
-        _ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
-        totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64
-    ) {
-        report(totalBytesWritten)
+    func run() async throws {
+        let manager = FileManager.default
+        if !manager.fileExists(atPath: file.path) { manager.createFile(atPath: file.path, contents: nil) }
+        written = (try? manager.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? 0
+        var request = URLRequest(url: url)
+        if written > 0 { request.setValue("bytes=\(written)-", forHTTPHeaderField: "Range") }
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        defer { session.finishTasksAndInvalidate() }
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                self.continuation = continuation
+                session.dataTask(with: request).resume()
+            }
+        } onCancel: {
+            session.invalidateAndCancel()
+        }
     }
 
     func urlSession(
-        _ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL
-    ) {}
+        _ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+    ) {
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 || status == 206 else {
+            failure = DownloadError.http(status)
+            completionHandler(.cancel)
+            return
+        }
+        do {
+            let handle = try FileHandle(forWritingTo: file)
+            if status == 200 {
+                // Server ohne Range-Unterstützung: von vorn.
+                try handle.truncate(atOffset: 0)
+                written = 0
+            } else {
+                try handle.seekToEnd()
+            }
+            self.handle = handle
+            report(written)
+            completionHandler(.allow)
+        } catch {
+            failure = error
+            completionHandler(.cancel)
+        }
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        do {
+            try handle?.write(contentsOf: data)
+            written += Int64(data.count)
+            report(written)
+        } catch {
+            failure = error
+            dataTask.cancel()
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
+        try? handle?.close()
+        handle = nil
+        if let failure = failure ?? error {
+            continuation?.resume(throwing: failure)
+        } else {
+            continuation?.resume()
+        }
+        continuation = nil
+    }
 }
