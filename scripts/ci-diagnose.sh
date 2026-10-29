@@ -28,5 +28,11 @@ for suite in RationalTests MigrationTests GoldenCompileTests EditCommandTests Jo
     S=$?
     echo "suite $suite: Status $S $(grep -E 'Test run with' "${RUNNER_TEMP:-/tmp}/step.log" | tail -1 | tr -d '\r')" >> "$OUT"
 done
+# Dekodier-Tests, die im normalen Lauf auf VMs übersprungen werden, hier zur Klärung erzwingen.
+for suite in SceneTests MetadataTests; do
+    SYLLABEAT_VM_MEDIA_TESTS=1 limited 180 swift test --package-path $PKG --skip-build --filter "$suite"
+    S=$?
+    echo "VM-erzwungen $suite: Status $S $(grep -E 'Test run with|✘' "${RUNNER_TEMP:-/tmp}/step.log" | tail -3 | tr -d '\r' | tr '\n' ' ')" >> "$OUT"
+done
 cat "$OUT"
 echo "::notice title=Diagnose::$(sed 's/%/%25/g' "$OUT" | awk '{printf "%s%%0A", $0}')"

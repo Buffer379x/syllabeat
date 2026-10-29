@@ -79,7 +79,7 @@ public enum MediaProbe {
         let codec = formats.first.map { fourCC(CMFormatDescriptionGetMediaSubType($0)) }
         let hasAudio = !(try await asset.loadTracks(withMediaType: .audio)).isEmpty
         trace("audioTrack ok")
-        let sampleTimes = try presentationTimes(asset: asset, track: track, limit: 121)
+        let sampleTimes = try await presentationTimes(asset: asset, track: track, limit: 121)
         trace("presentationTimes ok")
         let rate = rationalRate(nominal: Double(nominal), minFrameDuration: minFrame, sampleTimes: sampleTimes)
         let isVFR = variableRate(sampleTimes, timescale: timescale)
@@ -114,7 +114,16 @@ public enum MediaProbe {
     }
 
     /// Präsentationszeiten der ersten Samples, ohne zu dekodieren.
-    static func presentationTimes(asset: AVURLAsset, track: AVAssetTrack, limit: Int) throws -> [Double] {
+    static func presentationTimes(asset: AVURLAsset, track: AVAssetTrack, limit: Int) async throws -> [Double] {
+        let objects = Unshared(value: (asset, track))
+        return try await Blocking.run { cancellation in
+            try readPresentationTimes(asset: objects.value.0, track: objects.value.1, limit: limit, cancellation)
+        }
+    }
+
+    private static func readPresentationTimes(
+        asset: AVURLAsset, track: AVAssetTrack, limit: Int, _ cancellation: Blocking.Cancellation
+    ) throws -> [Double] {
         let reader = try AVAssetReader(asset: asset)
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
         output.alwaysCopiesSampleData = false
@@ -123,6 +132,7 @@ public enum MediaProbe {
         defer { reader.cancelReading() }
         var times: [Double] = []
         while times.count < limit, let sample = output.copyNextSampleBuffer() {
+            try cancellation.check()
             if CMSampleBufferGetNumSamples(sample) > 0 {
                 times.append(CMSampleBufferGetPresentationTimeStamp(sample).seconds)
             }
@@ -133,6 +143,11 @@ public enum MediaProbe {
     /// Start-Timecode aus der Timecode-Spur (behebt F2 aus 0.2.0), z. B. `10:00:00:00`.
     static func startTimecode(asset: AVURLAsset) async throws -> String? {
         guard let track = try await asset.loadTracks(withMediaType: .timecode).first else { return nil }
+        let objects = Unshared(value: (asset, track))
+        return try await Blocking.run { _ in try readTimecode(asset: objects.value.0, track: objects.value.1) }
+    }
+
+    private static func readTimecode(asset: AVURLAsset, track: AVAssetTrack) throws -> String? {
         let reader = try AVAssetReader(asset: asset)
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
         reader.add(output)

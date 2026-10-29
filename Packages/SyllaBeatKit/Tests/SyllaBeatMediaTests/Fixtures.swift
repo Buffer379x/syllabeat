@@ -26,6 +26,8 @@ enum TestFolder {
 /// AVAssetImageGenerator) hängt dort. Diese Tests laufen nur auf echter Hardware (lokal über `scripts/check.sh`).
 enum Hardware {
     static let isVirtualMachine: Bool = {
+        // Zur Fehlersuche lassen sich die Tests auch auf VMs erzwingen.
+        if ProcessInfo.processInfo.environment["SYLLABEAT_VM_MEDIA_TESTS"] != nil { return false }
         var value: Int32 = 0
         var size = MemoryLayout<Int32>.size
         return sysctlbyname("kern.hv_vmm_present", &value, &size, nil, 0) == 0 && value == 1

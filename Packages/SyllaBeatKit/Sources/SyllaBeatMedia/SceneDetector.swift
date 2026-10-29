@@ -40,6 +40,19 @@ public enum SceneDetector {
         }
         let fps = Double(try await track.load(.nominalFrameRate))
         let duration = try await asset.load(.duration).seconds
+        let objects = Unshared(value: (asset, track))
+        return try await Blocking.run { cancellation in
+            try scan(
+                asset: objects.value.0, track: objects.value.1, name: url.lastPathComponent, fps: fps,
+                duration: duration, options: options, cancellation)
+        }
+    }
+
+    /// Der eigentliche Dekodierdurchlauf; blockiert und läuft daher auf der Lese-Queue.
+    private static func scan(
+        asset: AVURLAsset, track: AVAssetTrack, name: String, fps: Double, duration: Double, options: Options,
+        _ cancellation: Blocking.Cancellation
+    ) throws -> SceneScan {
         let reader = try AVAssetReader(asset: asset)
         let output = output(for: track, width: options.width, height: options.height)
         reader.add(output)
@@ -53,7 +66,7 @@ public enum SceneDetector {
         var samples: [SceneScan.Sample] = []
         while let buffer = output.copyNextSampleBuffer() {
             defer { index += 1 }
-            try Task.checkCancellation()
+            try cancellation.check()
             guard index % step == 0, let pixels = CMSampleBufferGetImageBuffer(buffer) else { continue }
             let time = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
             let frame = Frame(pixels, time: time)
@@ -72,7 +85,7 @@ public enum SceneDetector {
             previous = frame
         }
         if reader.status == .failed {
-            throw MediaError.unreadable(url.lastPathComponent, reader.error?.localizedDescription ?? "unbekannt")
+            throw MediaError.unreadable(name, reader.error?.localizedDescription ?? "unbekannt")
         }
         let values = distances.map(\.distance).sorted()
         let median = values.isEmpty ? 0 : values[values.count / 2]
@@ -80,9 +93,9 @@ public enum SceneDetector {
         let threshold = max(0.35, median + 8 * mad)
         var cuts: [Double] = []
         for candidate in distances where candidate.distance > threshold {
+            try cancellation.check()
             let refined =
-                try await refine(
-                    asset: asset, track: track, from: candidate.previousTime, to: candidate.time, fps: fps)
+                try refine(asset: asset, track: track, from: candidate.previousTime, to: candidate.time, fps: fps)
                 ?? candidate.time
             if let last = cuts.last, refined - last < 0.2 { continue }
             if refined > 0.05, refined < duration - 0.05 { cuts.append(refined) }
@@ -93,9 +106,7 @@ public enum SceneDetector {
     /// Sucht zwischen zwei Stichproben den Frame mit dem größten Bildwechsel.
     static func refine(
         asset: AVURLAsset, track: AVAssetTrack, from start: Double, to end: Double, fps: Double
-    )
-        async throws -> Double?
-    {
+    ) throws -> Double? {
         let frameDuration = 1 / max(fps, 1)
         let reader = try AVAssetReader(asset: asset)
         reader.timeRange = CMTimeRange(
