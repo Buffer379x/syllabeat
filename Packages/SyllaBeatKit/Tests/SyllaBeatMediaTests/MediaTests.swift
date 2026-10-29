@@ -18,7 +18,7 @@ import Testing
         #expect(meta.width == 192 && meta.height == 108)
         #expect(meta.frameCount == 150)
         #expect(meta.hasAudio == false)
-        #expect(meta.codec == "avc1")
+        #expect(meta.codec == "jpeg")
     }
 
     @Test func rotationAndTimecode() async throws {

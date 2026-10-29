@@ -12,7 +12,8 @@ struct SyntheticClip {
     var rotation = 0
     var startTimecodeFrames: Int32?
     var variableRate = false
-    var codec: AVVideoCodecType = .h264
+    /// Motion-JPEG kodiert in Software und läuft daher auch auf CI-VMs ohne Hardware-Encoder.
+    var codec: AVVideoCodecType = .jpeg
 
     static let colors: [(UInt8, UInt8, UInt8)] = [
         (30, 90, 200), (220, 60, 40), (40, 180, 90), (240, 200, 40), (150, 60, 190),
