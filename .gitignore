@@ -10,14 +10,6 @@ __pycache__/
 *.dmg
 *.app/
 
-# Per scripts/fetch_binaries.py geladene Binärdateien (ffmpeg, ffprobe, Ollama)
-assets/bin/
-assets/downloads/
-
-# Beim Build erzeugt (scripts/build.py)
-assets/licenses/
-assets/*.icns
-
 # Projekt- und Laufzeitdaten
 *.syllabeat
 *.vcproject
