@@ -55,6 +55,18 @@ private struct ClipInspector: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
         Text(clip.name).font(.headline).textSelection(.enabled)
         actions
+        // Schnelle Entscheidungen oben, die Beschreibung darunter.
+        HStack {
+            StarRating(rating: clip.rating) { run(SetClipRating(clipID: clip.id, rating: $0)) }
+            Spacer()
+            Toggle(
+                "Nie verwenden",
+                isOn: Binding(get: { clip.excluded }, set: { run(SetClipExcluded(clipID: clip.id, excluded: $0)) })
+            )
+            .toggleStyle(.checkbox)
+            .accessibilityIdentifier("clip.excluded")
+            .help("Der automatische Schnitt nutzt diesen Clip nicht.")
+        }
         TextField("Beschreibung", text: $description, prompt: Text("Was ist zu sehen?"), axis: .vertical)
             .lineLimit(2...6)
             .textFieldStyle(.roundedBorder)
@@ -85,17 +97,6 @@ private struct ClipInspector: View {
             .disabled(ai.describing || clip.scenes.isEmpty)
             .help("Bildbeschreibung mit dem gewählten Anbieter (Einstellungen → Anbieter)")
             .accessibilityIdentifier("clip.describe")
-        }
-        HStack {
-            StarRating(rating: clip.rating) { run(SetClipRating(clipID: clip.id, rating: $0)) }
-            Spacer()
-            Toggle(
-                "Nie verwenden",
-                isOn: Binding(get: { clip.excluded }, set: { run(SetClipExcluded(clipID: clip.id, excluded: $0)) })
-            )
-            .toggleStyle(.checkbox)
-            .accessibilityIdentifier("clip.excluded")
-            .help("Der automatische Schnitt nutzt diesen Clip nicht.")
         }
         if media.missingClipIDs.contains(clip.id) {
             Label(

@@ -36,6 +36,7 @@ final class MediaImportUITests: XCTestCase {
         app.launchArguments = [
             "-SBOpenDocument", project.path, "-SBImportPaths", folder.appendingPathComponent("Material").path,
             "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)", "-AppleLocale", "de_DE",
+            "-ai.vision.provider", "off",
             "-libraryShowsGrid", "YES", "-libraryFilter", "all",
         ]
         app.launch()

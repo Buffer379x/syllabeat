@@ -19,7 +19,7 @@ final class ProjectWindowUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
-            "-AppleLocale", "de_DE",
+            "-AppleLocale", "de_DE", "-ai.vision.provider", "off",
         ]
         app.launch()
         return app
@@ -58,6 +58,7 @@ final class ProjectWindowUITests: XCTestCase {
         let excluded = element(app, "clip.excluded")
         XCTAssertTrue(excluded.waitForExistence(timeout: 5))
         XCTAssertEqual(excluded.value as? Int, 0)
+        XCTAssertTrue(excluded.isHittable, "„Nie verwenden“ liegt außerhalb des sichtbaren Bereichs")
         excluded.click()
         XCTAssertEqual(excluded.value as? Int, 1)
         app.typeKey("z", modifierFlags: .command)

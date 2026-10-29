@@ -50,7 +50,7 @@ final class SongEditingUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
-            "-AppleLocale", "de_DE",
+            "-AppleLocale", "de_DE", "-ai.vision.provider", "off",
         ]
         app.launch()
         XCTAssertTrue(labelled(app, "120,0 BPM").waitForExistence(timeout: 15), "Timeline fehlt")

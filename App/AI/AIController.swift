@@ -123,7 +123,7 @@ final class AIController {
                 // Schon einmal beschrieben (z. B. vor einem Absturz): aus dem Zwischenspeicher übernehmen.
                 if !replacing, let stored = ClipDescriber.stored(clip, cache: cache) {
                     done += 1
-                    await MainActor.run { owner?.store(stored.apply(to: clip)) }
+                    await MainActor.run { owner?.store(stored.apply(to: clip), replacing: replacing) }
                     continue
                 }
                 do {
@@ -133,7 +133,7 @@ final class AIController {
                     }
                     ClipDescriber.store(result.clip, cache: cache)
                     done += 1
-                    await MainActor.run { owner?.store(result.clip) }
+                    await MainActor.run { owner?.store(result.clip, replacing: replacing) }
                 } catch let error as ProviderError {
                     // Anbieter nicht erreichbar oder falsch eingerichtet: nicht für jeden Clip erneut versuchen.
                     if case .invalidAnswer = error {
@@ -155,9 +155,12 @@ final class AIController {
     }
 
     /// Übernimmt nur die Felder der Beschreibung, damit gleichzeitige Änderungen (Bewertung usw.) erhalten bleiben.
-    private func store(_ described: Clip) {
+    /// Hat jemand inzwischen selbst eine Beschreibung geschrieben, bleibt sie (außer bei „Neu beschreiben“).
+    private func store(_ described: Clip, replacing: Bool) {
         document?.applyAnalysis { project in
-            guard let index = project.clips.firstIndex(where: { $0.id == described.id }) else { return }
+            guard let index = project.clips.firstIndex(where: { $0.id == described.id }),
+                replacing || project.clips[index].description.isEmpty
+            else { return }
             project.clips[index].description = described.description
             project.clips[index].mood = described.mood
             project.clips[index].tags = described.tags

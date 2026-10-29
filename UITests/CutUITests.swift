@@ -72,7 +72,7 @@ final class CutUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
-            "-AppleLocale", "de_DE",
+            "-AppleLocale", "de_DE", "-ai.vision.provider", "off",
         ]
         app.launch()
 
