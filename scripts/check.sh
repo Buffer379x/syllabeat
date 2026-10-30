@@ -34,7 +34,13 @@ TIMEOUTS=""
     -destination 'platform=macOS,arch=arm64' -derivedDataPath "$DERIVED" $TIMEOUTS "$ACTION" 2>&1 \
     || echo $? > build/xcodebuild.status; } \
     | tee build/xcodebuild.log | grep --line-buffered -E "error:|Test Case .*(passed|failed|skipped)|\*\* (TEST|BUILD)" || true
-[ ! -f build/xcodebuild.status ] || exit "$(cat build/xcodebuild.status)"
+if [ -f build/xcodebuild.status ]; then
+    # Ursache sichtbar machen (Neustart des Test-Runners, Absturz, Zeitüberschreitung, Warten auf Ruhe der App).
+    echo "== xcodebuild fehlgeschlagen, Auszug aus build/xcodebuild.log"
+    grep -E -i "restarting|crash|timed out|time allowance|exceeded|quiesce|idle|failed|error" build/xcodebuild.log \
+        | grep -v "^Test Case .* passed" | tail -40 || true
+    exit "$(cat build/xcodebuild.status)"
+fi
 
 echo "== Version"
 WANTED=$(sed -n 's/^MARKETING_VERSION *= *//p' Config/Version.xcconfig)
