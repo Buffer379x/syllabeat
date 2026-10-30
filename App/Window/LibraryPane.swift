@@ -250,20 +250,16 @@ struct LibraryPane: View {
         ClipTile(clip: clip, project: project, media: media, selected: selection.contains(clip.id))
             .overlay(alignment: .bottomTrailing) { suggestionBadge(clip) }
             .onTapGesture(count: 2) { open(clip.id) }
-            .onTapGesture { select(clip.id) }
+            // ⌘- oder ⇧-Klick erweitert die Auswahl (SwiftUI erkennt die Taste am Klick selbst).
+            .highPriorityGesture(
+                TapGesture().modifiers(.command).onEnded { selection.formSymmetricDifference([clip.id]) }
+            )
+            .highPriorityGesture(
+                TapGesture().modifiers(.shift).onEnded { selection.formSymmetricDifference([clip.id]) }
+            )
+            .onTapGesture { selection = [clip.id] }
             .contextMenu { menu(targets(clip.id)) }
             .accessibilityAddTraits(selection.contains(clip.id) ? [.isSelected, .isButton] : .isButton)
-    }
-
-    /// Klick wählt aus, ⌘- oder ⇧-Klick erweitert die Auswahl.
-    private func select(_ id: String) {
-        // Tasten des Klicks selbst (zuverlässig auch bei synthetischen Ereignissen), sonst der aktuelle Zustand.
-        let flags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
-        if flags.contains(.command) || flags.contains(.shift) {
-            selection.formSymmetricDifference([id])
-        } else {
-            selection = [id]
-        }
     }
 
     /// Rechtsklick in die Auswahl wirkt auf alle ausgewählten Clips, sonst nur auf diesen.

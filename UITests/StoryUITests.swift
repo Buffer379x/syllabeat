@@ -158,10 +158,11 @@ final class StoryUITests: XCTestCase {
         let json = try savedJSON(app, url)
         let clips = try XCTUnwrap(json["clips"] as? [[String: Any]])
         XCTAssertTrue(clips.contains { !(($0["blocked"] as? [Any]) ?? []).isEmpty }, "nichts gesperrt")
-        app.menuBars.menuBarItems["Bearbeiten"].click()
-        let undo = app.menuItems.matching(NSPredicate(format: "title CONTAINS 'Ausschnitt sperren'")).firstMatch
-        XCTAssertTrue(undo.waitForExistence(timeout: 3), "kein Undo-Eintrag „Ausschnitt sperren“")
-        app.typeKey(.escape, modifierFlags: [])
+        // Ein Undo-Schritt nimmt Sperre und Neuschnitt zurück.
+        app.typeKey("z", modifierFlags: .command)
+        let undone = try XCTUnwrap(try savedJSON(app, url)["clips"] as? [[String: Any]])
+        XCTAssertTrue(
+            undone.allSatisfy { (($0["blocked"] as? [Any]) ?? []).isEmpty }, "Undo hat die Sperre nicht entfernt")
     }
 
     /// Zwei Clips wählen, neues Kapitel „Wald“ anlegen, im Drehbuch für Strophe 1 als Hauptkapitel setzen.
