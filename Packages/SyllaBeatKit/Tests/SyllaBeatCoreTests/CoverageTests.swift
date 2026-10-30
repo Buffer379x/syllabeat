@@ -140,3 +140,26 @@ import Testing
         #expect(vector.count == 2 && abs(vector[0] - 0.7071) < 1e-3 && abs(vector[1] - 0.7071) < 1e-3)
     }
 }
+
+@Suite struct BatchLookupTests {
+    @Test func suggestAllMatchesSingleSuggestions() {
+        var project = Project(
+            clips: ["farm_pigs_wan.mp4", "farm_pigs_wan (2).mp4", "x.mp4"].map { StoryFixtures.clip($0) })
+        project.story.chapters = [Chapter(id: "k", name: "Tiere", color: 0)]
+        project.clips[0].chapterID = "k"
+        let vectors: [String: [Float]] = ["farm_pigs_wan.mp4": [1, 0], "x.mp4": [0.9, 0.1]]
+        let all = ChapterSuggester.suggestAll(in: project, vectors: vectors)
+        for clip in project.clips where clip.chapterID == nil {
+            let single = ChapterSuggester.suggest(for: clip, in: project, vectors: vectors)
+            #expect(all[clip.id]?.chapterID == single?.chapterID && all[clip.id]?.sure == single?.sure)
+        }
+        #expect(all["farm_pigs_wan (2).mp4"]?.sure == true)
+    }
+
+    @Test func traitValuesMatchSingleLookups() {
+        var project = Project(clips: [StoryFixtures.clip("drive_sunset.mp4"), StoryFixtures.clip("wiese.mp4")])
+        project.clips[1].traits["tageszeit"] = TraitValue(value: "Nacht", source: .user)
+        let all = StoryResolver.values(.timeOfDay, in: project)
+        #expect(all["drive_sunset.mp4"]?.value == "Abend" && all["wiese.mp4"]?.value == "Nacht")
+    }
+}

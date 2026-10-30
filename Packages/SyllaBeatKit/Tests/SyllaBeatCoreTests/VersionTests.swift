@@ -7,5 +7,5 @@ import Testing
         contentsOf: Fixtures.repository.appendingPathComponent("Config/Version.xcconfig"), encoding: .utf8)
     let line = config.split(separator: "\n").first { $0.hasPrefix("MARKETING_VERSION") }
     let version = line?.split(separator: "=").last?.trimmingCharacters(in: .whitespaces)
-    #expect(version == "0.3.0")
+    #expect(version == "0.4.0")
 }

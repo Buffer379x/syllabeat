@@ -22,7 +22,11 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
         }
     }
 
-    func includes(_ clip: Clip, in project: Project, missing: Set<String>) -> Bool {
+    /// `times`: Tageszeit je Clip (einmal je Darstellung über `StoryResolver.values` berechnet).
+    func includes(
+        _ clip: Clip, in project: Project, missing: Set<String>,
+        times: [String: (value: String, source: TraitValue.Source)] = [:]
+    ) -> Bool {
         switch self {
         case .all: true
         case .unused: project.usageCount(of: clip.id) == 0
@@ -30,10 +34,10 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
         case .favorites: (clip.rating ?? 0) >= 4
         case .warnings: clip.hasWarnings || missing.contains(clip.id)
         case .excluded: clip.excluded
-        case .day: StoryResolver.value(.timeOfDay, for: clip, in: project)?.value == "Tag"
-        case .evening: StoryResolver.value(.timeOfDay, for: clip, in: project)?.value == "Abend"
-        case .night: StoryResolver.value(.timeOfDay, for: clip, in: project)?.value == "Nacht"
-        case .timeOpen: StoryResolver.value(.timeOfDay, for: clip, in: project) == nil
+        case .day: times[clip.id]?.value == "Tag"
+        case .evening: times[clip.id]?.value == "Abend"
+        case .night: times[clip.id]?.value == "Nacht"
+        case .timeOpen: times[clip.id] == nil
         }
     }
 }
@@ -67,8 +71,9 @@ struct LibraryPane: View {
 
     private var visible: [Clip] {
         let missing = media.missingClipIDs
+        let times = StoryResolver.values(.timeOfDay, in: project)
         var clips = project.clips.filter { clip in
-            filter.includes(clip, in: project, missing: missing)
+            filter.includes(clip, in: project, missing: missing, times: times)
                 && (shotSize.isEmpty || clip.scenes.contains { $0.features?.shotSize.rawValue == shotSize })
         }
         let words = query.lowercased().split(separator: " ")
@@ -172,7 +177,9 @@ struct LibraryPane: View {
     private static let columns = [GridItem(.adaptive(minimum: 120, maximum: 220), spacing: 8)]
 
     private func grid(_ clips: [Clip]) -> some View {
-        ScrollView {
+        let suggestions = suggestions
+        let times = StoryResolver.values(.timeOfDay, in: project)
+        return ScrollView {
             if byChapter, !project.story.chapters.isEmpty {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(groups(clips), id: \.id) { group in
@@ -191,13 +198,17 @@ struct LibraryPane: View {
                         }
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("library.group.\(group.id)")
-                        LazyVGrid(columns: Self.columns, spacing: 10) { ForEach(group.clips) { tile($0) } }
+                        LazyVGrid(columns: Self.columns, spacing: 10) {
+                            ForEach(group.clips) { tile($0, suggestion: suggestions[$0.id], time: times[$0.id]) }
+                        }
                     }
                 }
                 .padding(8)
             } else {
-                LazyVGrid(columns: Self.columns, spacing: 10) { ForEach(clips) { tile($0) } }
-                    .padding(8)
+                LazyVGrid(columns: Self.columns, spacing: 10) {
+                    ForEach(clips) { tile($0, suggestion: suggestions[$0.id], time: times[$0.id]) }
+                }
+                .padding(8)
             }
         }
         .accessibilityIdentifier("library.grid")
@@ -236,19 +247,15 @@ struct LibraryPane: View {
 
     /// Kapitel-Vorschläge für Clips ohne Kapitel.
     private var suggestions: [String: (chapterID: String, sure: Bool)] {
-        guard !project.story.chapters.isEmpty else { return [:] }
-        var result: [String: (chapterID: String, sure: Bool)] = [:]
-        for clip in project.clips where clip.chapterID == nil {
-            if let suggestion = ChapterSuggester.suggest(for: clip, in: project, vectors: media.clipVectors) {
-                result[clip.id] = suggestion
-            }
-        }
-        return result
+        ChapterSuggester.suggestAll(in: project, vectors: media.clipVectors)
     }
 
-    private func tile(_ clip: Clip) -> some View {
-        ClipTile(clip: clip, project: project, media: media, selected: selection.contains(clip.id))
-            .overlay(alignment: .bottomTrailing) { suggestionBadge(clip) }
+    private func tile(
+        _ clip: Clip, suggestion: (chapterID: String, sure: Bool)?,
+        time: (value: String, source: TraitValue.Source)?
+    ) -> some View {
+        ClipTile(clip: clip, project: project, media: media, selected: selection.contains(clip.id), time: time)
+            .overlay(alignment: .bottomTrailing) { suggestionBadge(suggestion) }
             .onTapGesture(count: 2) { open(clip.id) }
             // ⌘- oder ⇧-Klick erweitert die Auswahl (SwiftUI erkennt die Taste am Klick selbst).
             .highPriorityGesture(
@@ -268,11 +275,8 @@ struct LibraryPane: View {
     }
 
     @ViewBuilder
-    private func suggestionBadge(_ clip: Clip) -> some View {
-        if clip.chapterID == nil,
-            let suggestion = ChapterSuggester.suggest(for: clip, in: project, vectors: media.clipVectors),
-            let chapter = project.story.chapter(withID: suggestion.chapterID)
-        {
+    private func suggestionBadge(_ suggestion: (chapterID: String, sure: Bool)?) -> some View {
+        if let suggestion, let chapter = project.story.chapter(withID: suggestion.chapterID) {
             Text("→ \(chapter.name)\(suggestion.sure ? "" : " ?")")
                 .font(.caption2.weight(.semibold))
                 .padding(.horizontal, 4)
@@ -311,8 +315,9 @@ struct LibraryPane: View {
     }
 
     private func list(_ clips: [Clip]) -> some View {
-        List(clips, selection: $selection) { clip in
-            ClipRow(clip: clip, project: project, media: media).tag(clip.id)
+        let times = StoryResolver.values(.timeOfDay, in: project)
+        return List(clips, selection: $selection) { clip in
+            ClipRow(clip: clip, project: project, media: media, time: times[clip.id]).tag(clip.id)
                 .contextMenu { menu(targets(clip.id)) }
         }
         .listStyle(.sidebar)
@@ -335,6 +340,7 @@ private struct ClipTile: View {
     var project: Project
     var media: MediaController
     var selected: Bool
+    var time: (value: String, source: TraitValue.Source)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -343,7 +349,9 @@ private struct ClipTile: View {
             )
             .aspectRatio(16 / 9, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(alignment: .topTrailing) { ClipBadges(clip: clip, project: project, media: media).padding(4) }
+            .overlay(alignment: .topTrailing) {
+                ClipBadges(clip: clip, project: project, media: media, time: time).padding(4)
+            }
             .overlay(alignment: .bottomLeading) {
                 Text(Format.duration(clip.meta.duration))
                     .font(.caption2.monospacedDigit())
@@ -379,6 +387,7 @@ private struct ClipRow: View {
     var clip: Clip
     var project: Project
     var media: MediaController
+    var time: (value: String, source: TraitValue.Source)?
 
     var body: some View {
         HStack(spacing: 10) {
@@ -390,7 +399,7 @@ private struct ClipRow: View {
                 Text(info).font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
             Spacer(minLength: 0)
-            ClipBadges(clip: clip, project: project, media: media)
+            ClipBadges(clip: clip, project: project, media: media, time: time)
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("clip.\(clip.id)")
@@ -409,6 +418,7 @@ private struct ClipBadges: View {
     var clip: Clip
     var project: Project
     var media: MediaController
+    var time: (value: String, source: TraitValue.Source)?
 
     var body: some View {
         HStack(spacing: 3) {
@@ -432,7 +442,7 @@ private struct ClipBadges: View {
                     .frame(width: 8, height: 8).padding(3).background(.thinMaterial, in: Circle())
                     .help("Kapitel: \(project.story.chapters[index].name)")
             }
-            if let time = StoryResolver.value(.timeOfDay, for: clip, in: project) {
+            if let time {
                 badge(
                     systemImage: TimeOfDaySymbol.name(time.value), color: .secondary,
                     help: "Tageszeit: \(time.value) (\(TimeOfDaySymbol.source(time.source)))")

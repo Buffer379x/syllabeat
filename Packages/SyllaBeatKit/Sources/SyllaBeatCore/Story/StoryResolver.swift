@@ -87,3 +87,22 @@ extension StoryResolver {
         ).map { (value: $0.0, source: $0.1) }
     }
 }
+
+extension StoryResolver {
+    /// Werte eines Merkmals für alle Clips in einem Durchgang (Gruppen der Dateinamen einmal berechnet).
+    public static func values(
+        _ trait: Trait, in project: Project
+    ) -> [String: (value: String, source: TraitValue.Source)] {
+        let groups = FileNameMotif.groups(in: project.clips.map(\.name))
+        var result: [String: (value: String, source: TraitValue.Source)] = [:]
+        for clip in project.clips {
+            if let found = traitValue(
+                clip, trait: trait, chapter: project.story.chapter(withID: clip.chapterID),
+                motif: FileNameMotif.parse(clip.name, groups: groups))
+            {
+                result[clip.id] = (found.0, found.1)
+            }
+        }
+        return result
+    }
+}

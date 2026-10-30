@@ -37,3 +37,47 @@ public enum ChapterSuggester {
         return best.map { ($0.id, false) }
     }
 }
+
+extension ChapterSuggester {
+    /// Vorschläge für alle Clips ohne Kapitel in einem Durchgang (Motive und Schwerpunkte einmal berechnet).
+    public static func suggestAll(
+        in project: Project, vectors: [String: [Float]]
+    ) -> [String: (chapterID: String, sure: Bool)] {
+        guard !project.story.chapters.isEmpty else { return [:] }
+        let motifs = project.motifs()
+        var chapterOfMotif: [String: String] = [:]
+        for clip in project.clips {
+            guard let chapter = clip.chapterID, let motif = motifs[clip.id],
+                motif.words.count >= 2 || motif.generator != nil || motif.copy > 1
+            else { continue }
+            chapterOfMotif[motif.key] = chapterOfMotif[motif.key] ?? chapter
+        }
+        var centres: [(id: String, centre: [Float])] = []
+        for chapter in project.story.chapters {
+            let members = project.clips.filter { $0.chapterID == chapter.id }.compactMap { vectors[$0.id] }
+            guard let first = members.first else { continue }
+            var centre = [Float](repeating: 0, count: first.count)
+            for member in members where member.count == first.count {
+                for i in member.indices { centre[i] += member[i] }
+            }
+            let norm = centre.reduce(0) { $0 + $1 * $1 }.squareRoot()
+            if norm > 0 { centres.append((chapter.id, centre.map { $0 / norm })) }
+        }
+        var result: [String: (chapterID: String, sure: Bool)] = [:]
+        for clip in project.clips where clip.chapterID == nil {
+            if let motif = motifs[clip.id], motif.words.count >= 2 || motif.generator != nil || motif.copy > 1,
+                let chapter = chapterOfMotif[motif.key]
+            {
+                result[clip.id] = (chapter, true)
+                continue
+            }
+            guard let vector = vectors[clip.id] else { continue }
+            let best = centres.filter { $0.centre.count == vector.count }.max { a, b in
+                zip(vector, a.centre).reduce(Float(0)) { $0 + $1.0 * $1.1 }
+                    < zip(vector, b.centre).reduce(Float(0)) { $0 + $1.0 * $1.1 }
+            }
+            if let best { result[clip.id] = (best.id, false) }
+        }
+        return result
+    }
+}
