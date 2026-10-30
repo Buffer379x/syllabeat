@@ -109,6 +109,9 @@ func storyCommand(_ arguments: [String]) async throws {
             if seed == Int(ProcessInfo.processInfo.environment["FOLGE_SEED"] ?? "1"), arguments.contains("--folge"),
                 name == "mit Geschichte"
             {
+                for finding in InconsistencyChecker.check(project, cut: cut) {
+                    print("  ⚠ \(finding.message)")
+                }
                 let resolved = StoryResolver.resolve(project)
                 for shot in cut.shots {
                     let clip = project.clip(withID: shot.clipID)
