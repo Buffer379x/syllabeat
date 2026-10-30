@@ -115,6 +115,8 @@ public enum CutEngine {
         var chapter: Int?
         /// Stufe je aktivem Merkmal (`nil` = unbekannt).
         var traits: [Int?] = []
+        /// Motiv aus dem Dateinamen (Takes teilen es); −1 = nicht vergleichbar (z. B. Kameradateien).
+        var motif = -1
         /// Anteile, die nicht vom Slot abhängen.
         var fixed = Scores()
 
@@ -316,6 +318,31 @@ public enum CutEngine {
                                 * Double(beam.unitUses[candidate.unit])
                             scores.adjacent = previousUnit?.clipID == unit.clipID && units.count > 1 ? -2 : 0
                             scores.shotSize = previousUnit.map { $0.shotSize != unit.shotSize ? 0.15 : 0 } ?? 0
+                            // Takes desselben Motivs nicht direkt hintereinander (wirkt wie ein Fehler).
+                            if let previousUnit, previousUnit.clipID != unit.clipID, unit.motif >= 0,
+                                previousUnit.motif == unit.motif
+                            {
+                                scores.adjacent = -2
+                            }
+                            // Kein Sandwich: nach einem fremden Bild nicht zum Motiv von vor zwei Einstellungen zurück (A · B · A).
+                            if unit.motif >= 0, let previousUnit, previousUnit.motif != unit.motif, beam.node >= 0,
+                                nodes[beam.node].parent >= 0
+                            {
+                                let earlier = nodes[nodes[beam.node].parent].pick.unit
+                                if earlier >= 0, units[earlier].motif == unit.motif { scores.adjacent -= 0.6 }
+                            }
+                            // Motiv halten: In derselben Zeile mit klarem Text-Treffer setzt die Einheit nahtlos fort; der Schnitt bleibt
+                            // auf dem Beat, ist im Bild aber unsichtbar (statt ein fremdes Bild dazwischenzuschieben).
+                            if previous == candidate.unit, slotIndex > 0, let line = slot.lineID,
+                                slots[slotIndex - 1].lineID == line,
+                                let row = text[line], row[candidate.unit] >= 0.25,
+                                let cursor = beam.cursor[candidate.unit],
+                                cursor + need[slotIndex] + margin <= unit.end
+                            {
+                                scores.adjacent = 0
+                                scores.reuse = 0
+                                scores.continuity += 0.4
+                            }
                             let total = scores.total
                             let score = beam.score + total
                             guard best.accepts(score) else { continue }
@@ -466,6 +493,14 @@ public enum CutEngine {
             project.story.chapters.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         let traits = project.story.traits.filter { $0.rule != .off }
         let resolved = StoryResolver.resolve(project)
+        // Motive vergleichbar nur bei sprechenden Namen (zwei Wörter) oder erkennbaren Takes/Generatoren.
+        let motifs = project.motifs().filter {
+            $0.value.words.count >= 2 || $0.value.generator != nil || $0.value.copy > 1
+        }
+        let motifIndex = Dictionary(
+            Set(motifs.values.map(\.key)).sorted().enumerated().map { ($1, $0) },
+            uniquingKeysWith: { first, _ in first })
+        let cleanMotifs = Set(motifs.values.filter { $0.watermark != true }.map(\.key))
         for (clipIndex, clip) in project.clips.enumerated() {
             guard !clip.excluded, !clip.meta.needsConversion, clip.meta.duration > 0, !clip.scenes.isEmpty else {
                 continue
@@ -503,6 +538,11 @@ public enum CutEngine {
                     unit.fixed.aesthetics = 0.4 * (unit.aesthetics + 1) / 2 - (unit.utility ? 1.5 : 0)
                     unit.fixed.sharpness = unit.sharpness < 0.15 ? -0.4 : 0
                     unit.fixed.rating = unit.rating > 0 ? 0.15 * Double(unit.rating - 3) : 0
+                    if let motif = motifs[clip.id] {
+                        unit.motif = motifIndex[motif.key] ?? -1
+                        // Wasserzeichen meiden, wenn es dasselbe Motiv auch ohne gibt.
+                        if motif.watermark == true, cleanMotifs.contains(motif.key) { unit.fixed.watermark = -1 }
+                    }
                     units.append(unit)
                 }
             }
