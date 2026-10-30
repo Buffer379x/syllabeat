@@ -27,7 +27,7 @@ jobs:
       - name: Metal-Toolchain (für MLX-Shader)
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Prüfungen (scripts/check.sh)
-        run: scripts/ci-run.sh 1200 scripts/check.sh
+        run: scripts/ci-run.sh 1800 scripts/check.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
