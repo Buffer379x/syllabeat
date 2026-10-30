@@ -116,5 +116,19 @@ public enum SyntheticProject {
                 return SourceRange(start: start, end: min(length, start + 0.2 + random.unit() * 2))
             }
         }
+        // Kapitel (auch knappe) und ein Drehbuch für einen Teil der Abschnitte.
+        let chapterCount = 2 + Int(random.next() % 3)
+        project.story.chapters = (0..<chapterCount).map { Chapter(id: "k\($0)", name: "Kapitel \($0)", color: $0) }
+        for index in project.clips.indices where random.unit() < 0.7 {
+            project.clips[index].chapterID = "k\(Int(random.next() % UInt64(chapterCount)))"
+        }
+        for section in project.analysis?.sections ?? [] where random.unit() < 0.6 {
+            var entry: [String: ChapterRole] = [:]
+            for _ in 0..<(1 + Int(random.next() % 2)) {
+                entry["k\(Int(random.next() % UInt64(chapterCount)))"] = random.unit() < 0.7 ? .main : .mix
+            }
+            project.story.plan[section.id] = entry
+        }
+        if random.unit() < 0.3 { project.story.montage = [] }
     }
 }

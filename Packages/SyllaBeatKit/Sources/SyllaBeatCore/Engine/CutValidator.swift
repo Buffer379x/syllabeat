@@ -1,6 +1,6 @@
 import Foundation
 
-/// Prüft die Invarianten I1–I5 und I8 eines Schnitts (Plan Abschnitt 10.1). I6 (Determinismus) und I7 (Exporte) prüfen
+/// Prüft die Invarianten I1–I5, I8 und I9 eines Schnitts (Plan Abschnitt 10.1). I6 (Determinismus) und I7 (Exporte) prüfen
 /// die Tests direkt.
 public enum CutValidator {
     /// `minimumFactor`: Anteil der Mindestdauer, den jeder freie Shot erreichen muss (nach Rasterkorrekturen ½).
@@ -56,6 +56,22 @@ public enum CutValidator {
                 else { continue }
                 if template.clipID != shot.clipID || template.sourceIn != shot.sourceIn {
                     issues.append("I4: \(shot.id) weicht von seiner Vorlage \(source) ab.")
+                }
+            }
+        }
+        // I9: Mit Drehbuch liegt jeder freie Shot in einem erlaubten Kapitel seines Abschnitts oder ist als
+        // ausgewichen vermerkt.
+        if !project.story.plan.isEmpty {
+            let sections = SlotPlanner.normalizedSections(analysis)
+            for shot in cut.shots where !shot.locked && shot.reasons?.copiedFrom == nil {
+                let middle = (shot.start.time + shot.end.time) / 2
+                guard let section = sections.first(where: { $0.start <= middle && middle < $0.end }),
+                    let entry = project.story.plan[section.id] ?? section.repeatOf.flatMap({ project.story.plan[$0] }),
+                    !entry.isEmpty
+                else { continue }
+                let chapter = project.clip(withID: shot.clipID)?.chapterID
+                if !(chapter.map { entry[$0] != nil } ?? false), !(shot.reasons?.relaxed.contains("kapitel") ?? false) {
+                    issues.append("I9: \(shot.id) liegt außerhalb der Kapitel seines Abschnitts.")
                 }
             }
         }

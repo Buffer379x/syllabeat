@@ -18,7 +18,8 @@ public struct TextScores: Sendable, Equatable {
 /// Clips tabu, fixierte Shots bleiben. Ergebnis inklusive Begründung und Alternativen je Shot.
 public enum CutEngine {
     public enum Component: String, CaseIterable, Sendable {
-        case text, story, energy, aesthetics, rating, shotSize, reuse, adjacent, sharpness, chance
+        case text, story, energy, aesthetics, rating, shotSize, reuse, adjacent, sharpness, chance, chapter, continuity,
+            watermark
 
         public var title: String {
             switch self {
@@ -32,6 +33,9 @@ public enum CutEngine {
             case .adjacent: "Gleicher Clip direkt davor"
             case .sharpness: "Schärfe"
             case .chance: "Zufall (Neu würfeln)"
+            case .chapter: "Kapitel"
+            case .continuity: "Kontinuität"
+            case .watermark: "Wasserzeichen"
             }
         }
     }
@@ -54,9 +58,13 @@ public enum CutEngine {
         var adjacent = 0.0
         var sharpness = 0.0
         var chance = 0.0
+        var chapter = 0.0
+        var continuity = 0.0
+        var watermark = 0.0
 
         var total: Double {
-            text + story + energy + aesthetics + rating + shotSize + reuse + adjacent + sharpness + chance
+            text + story + energy + aesthetics + rating + shotSize + reuse + adjacent + sharpness + chance + chapter
+                + continuity + watermark
         }
 
         subscript(component: Component) -> Double {
@@ -71,6 +79,9 @@ public enum CutEngine {
             case .adjacent: adjacent
             case .sharpness: sharpness
             case .chance: chance
+            case .chapter: chapter
+            case .continuity: continuity
+            case .watermark: watermark
             }
         }
 
@@ -100,6 +111,8 @@ public enum CutEngine {
         var utility: Bool
         var shotSize: ShotSize
         var rating: Int
+        /// Kapitelindex der Geschichte.
+        var chapter: Int?
         /// Anteile, die nicht vom Slot abhängen.
         var fixed = Scores()
 
@@ -110,6 +123,8 @@ public enum CutEngine {
         var unit: Int
         var base: Double
         var scores: Scores
+        /// Gelockerte Regeln (Materialmangel), z. B. „kapitel“.
+        var relaxed: [String] = []
     }
 
     struct Pick {
@@ -117,6 +132,7 @@ public enum CutEngine {
         var sourceIn: Double
         var scores: Scores
         var total: Double
+        var relaxed: [String] = []
     }
 
     /// Ein Pfad der Beam-Suche. Die Picks liegen als Rückverweise in einer gemeinsamen Liste, damit beim Verzweigen
@@ -128,6 +144,8 @@ public enum CutEngine {
         var unitUses: [UInt16]
         /// Nächster Quell-In je benutzter Einheit (sonst Szenenanfang).
         var cursor: [Int: Double]
+        /// Höchster Kapitelindex im laufenden Abschnitt (Fortschritt), −1 am Abschnittsanfang.
+        var chapterFloor = -1
     }
 
     struct Node {
@@ -171,6 +189,7 @@ public enum CutEngine {
         }
         let text = normalize(textScores.values, keys: Set(slots.compactMap(\.lineID)), units: units)
         let story = normalize(textScores.sections, keys: Set(slots.compactMap(\.sectionID)), units: units)
+        let rules = StoryContext.make(project, slots: slots)
         var nodes: [Node] = []
         nodes.reserveCapacity(slots.count * beamWidth)
         var beams = [
@@ -210,28 +229,42 @@ public enum CutEngine {
             case .free:
                 let candidates = rankedCandidates(
                     slotIndex, slot, need: need[slotIndex], units: units, text: slot.lineID.flatMap { text[$0] },
-                    story: slot.sectionID.flatMap { story[$0] }, seed: style.seed)
+                    story: slot.sectionID.flatMap { story[$0] }, seed: style.seed, allowed: rules.allowed[slotIndex])
                 alternatives[slotIndex] = Array(candidates.prefix(9))
-                for (b, beam) in beams.enumerated() {
-                    let previous = beam.node >= 0 ? nodes[beam.node].pick.unit : -1
-                    let previousUnit = previous >= 0 ? units[previous] : nil
-                    for candidate in candidates {
-                        let unit = units[candidate.unit]
-                        var scores = candidate.scores
-                        scores.reuse =
-                            -0.35 * Double(beam.clipUses[unit.clipIndex]) - 0.8 * Double(beam.unitUses[candidate.unit])
-                        scores.adjacent = previousUnit?.clipID == unit.clipID && units.count > 1 ? -2 : 0
-                        scores.shotSize = previousUnit.map { $0.shotSize != unit.shotSize ? 0.15 : 0 } ?? 0
-                        let total = scores.total
-                        let score = beam.score + total
-                        guard best.accepts(score) else { continue }
-                        let cursor = beam.cursor[candidate.unit] ?? unit.start
-                        let sourceIn = cursor + need[slotIndex] + margin <= unit.end ? cursor : unit.start
-                        best.insert(
-                            Expansion(
-                                beam: b,
-                                pick: Pick(unit: candidate.unit, sourceIn: sourceIn, scores: scores, total: total),
-                                score: score))
+                // Erst streng (Fortschritt der Geschichte als Filter); findet kein Pfad einen Kandidaten, als Abschlag.
+                for strict in [true, false] where strict || best.items.isEmpty {
+                    for (b, beam) in beams.enumerated() {
+                        let previous = beam.node >= 0 ? nodes[beam.node].pick.unit : -1
+                        let previousUnit = previous >= 0 ? units[previous] : nil
+                        let floor = rules.sectionStart[slotIndex] ? -1 : beam.chapterFloor
+                        let progresses = rules.allowed[slotIndex] != nil && !rules.montage[slotIndex]
+                        for candidate in candidates {
+                            let unit = units[candidate.unit]
+                            var scores = candidate.scores
+                            var relaxed = candidate.relaxed
+                            if progresses, let chapter = unit.chapter, chapter < floor {
+                                if strict { continue }
+                                scores.chapter -= 1.5
+                                if !relaxed.contains("kapitel") { relaxed.append("kapitel") }
+                            }
+                            scores.reuse =
+                                -0.35 * Double(beam.clipUses[unit.clipIndex]) - 0.8
+                                * Double(beam.unitUses[candidate.unit])
+                            scores.adjacent = previousUnit?.clipID == unit.clipID && units.count > 1 ? -2 : 0
+                            scores.shotSize = previousUnit.map { $0.shotSize != unit.shotSize ? 0.15 : 0 } ?? 0
+                            let total = scores.total
+                            let score = beam.score + total
+                            guard best.accepts(score) else { continue }
+                            let cursor = beam.cursor[candidate.unit] ?? unit.start
+                            let sourceIn = cursor + need[slotIndex] + margin <= unit.end ? cursor : unit.start
+                            best.insert(
+                                Expansion(
+                                    beam: b,
+                                    pick: Pick(
+                                        unit: candidate.unit, sourceIn: sourceIn, scores: scores, total: total,
+                                        relaxed: relaxed),
+                                    score: score))
+                        }
                     }
                 }
             }
@@ -250,6 +283,12 @@ public enum CutEngine {
                     beam = beams[expansion.beam]
                 }
                 let pick = expansion.pick
+                if rules.sectionStart[slotIndex] { beam.chapterFloor = -1 }
+                if case .free = slot.role, rules.allowed[slotIndex] != nil, !rules.montage[slotIndex], pick.unit >= 0,
+                    let chapter = units[pick.unit].chapter
+                {
+                    beam.chapterFloor = max(beam.chapterFloor, chapter)
+                }
                 nodes.append(Node(pick: pick, parent: beam.node))
                 beam.node = nodes.count - 1
                 beam.score = expansion.score
@@ -318,7 +357,7 @@ public enum CutEngine {
                     sceneID: unit.sceneID, sourceIn: sourceIn,
                     reasons: ShotReasons(
                         components: pick.scores.named, total: pick.total, alternatives: Array(others),
-                        copiedFrom: copiedFrom)))
+                        copiedFrom: copiedFrom, relaxed: pick.relaxed)))
         }
         return Cut(
             id: "cut-\(style.seed)", name: name ?? "\(style.preset.title) · \(style.seed)", seed: style.seed,
@@ -341,6 +380,8 @@ public enum CutEngine {
             }
             return Double(low) / Double(sorted.count)
         }
+        let chapterIndex = Dictionary(
+            project.story.chapters.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         for (clipIndex, clip) in project.clips.enumerated() {
             guard !clip.excluded, !clip.meta.needsConversion, clip.meta.duration > 0, !clip.scenes.isEmpty else {
                 continue
@@ -373,7 +414,7 @@ public enum CutEngine {
                         aesthetics: features?.aesthetics ?? 0,
                         sharpness: percentile(features?.sharpness ?? 0, allSharpness),
                         utility: features?.isUtility ?? false, shotSize: features?.shotSize ?? .wide,
-                        rating: clip.rating ?? 0)
+                        rating: clip.rating ?? 0, chapter: clip.chapterID.flatMap { chapterIndex[$0] })
                     unit.fixed.aesthetics = 0.4 * (unit.aesthetics + 1) / 2 - (unit.utility ? 1.5 : 0)
                     unit.fixed.sharpness = unit.sharpness < 0.15 ? -0.4 : 0
                     unit.fixed.rating = unit.rating > 0 ? 0.15 * Double(unit.rating - 3) : 0
@@ -417,22 +458,38 @@ public enum CutEngine {
 
     /// Die besten Einheiten für einen Slot nach festen Anteilen (ohne Wiederverwendung und Nachbarschaft).
     static func rankedCandidates(
-        _ slotIndex: Int, _ slot: Slot, need: Double, units: [Unit], text: [Double]?, story: [Double]?, seed: UInt64
+        _ slotIndex: Int, _ slot: Slot, need: Double, units: [Unit], text: [Double]?, story: [Double]?, seed: UInt64,
+        allowed: [Int: ChapterRole]? = nil
     ) -> [Candidate] {
-        var top = TopK<Candidate>(capacity: candidatesPerSlot) { $0.base }
         let prefix = SeededRandom.mix(SeededRandom.mix(SeededRandom.basis, seed), UInt64(slotIndex))
-        for (index, unit) in units.enumerated() where unit.length >= need + margin {
-            var random = SeededRandom(seed: SeededRandom.mix(SeededRandom.mix(prefix, UInt64(index)), 0xC0FFEE))
-            var scores = unit.fixed
-            if let text { scores.text = 1.2 * text[index] }
-            if let story { scores.story = 1.0 * story[index] }
-            scores.energy = 0.6 * (1 - abs(unit.motion - slot.energy))
-            scores.chance = 0.5 * (random.unit() - 0.5)
-            let base = scores.total
-            guard top.accepts(base) else { continue }
-            top.insert(Candidate(unit: index, base: base, scores: scores))
+        // Mit Drehbuch nur erlaubte Kapitel; reicht deren Material nicht, alle mit Abschlag (Ausweichen).
+        for strict in [true, false] where strict || allowed != nil {
+            var top = TopK<Candidate>(capacity: candidatesPerSlot) { $0.base }
+            for (index, unit) in units.enumerated() where unit.length >= need + margin {
+                var random = SeededRandom(seed: SeededRandom.mix(SeededRandom.mix(prefix, UInt64(index)), 0xC0FFEE))
+                var scores = unit.fixed
+                var relaxed: [String] = []
+                if let allowed {
+                    if let role = unit.chapter.flatMap({ allowed[$0] }) {
+                        scores.chapter = role == .main ? 1.5 : 0.6
+                    } else if strict {
+                        continue
+                    } else {
+                        scores.chapter = -1.5
+                        relaxed = ["kapitel"]
+                    }
+                }
+                if let text { scores.text = 1.2 * text[index] }
+                if let story { scores.story = 1.0 * story[index] }
+                scores.energy = 0.6 * (1 - abs(unit.motion - slot.energy))
+                scores.chance = 0.5 * (random.unit() - 0.5)
+                let base = scores.total
+                guard top.accepts(base) else { continue }
+                top.insert(Candidate(unit: index, base: base, scores: scores, relaxed: relaxed))
+            }
+            if !top.items.isEmpty || !strict || allowed == nil { return top.items }
         }
-        return top.items
+        return []
     }
 }
 
