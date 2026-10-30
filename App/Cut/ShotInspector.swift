@@ -93,6 +93,20 @@ struct ShotInspector: View {
                 }
                 Divider()
                 Fact("Gesamt", reasons.total.formatted(.number.precision(.fractionLength(2))))
+                if let line = lineText {
+                    Text(line).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                if !reasons.relaxed.isEmpty {
+                    Label(
+                        "Ausgewichen (\(reasons.relaxed.map(Self.ruleTitle).joined(separator: ", "))): "
+                            + "passendes Material fehlte.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
+                if let chapter = project.story.chapter(withID: project.clip(withID: shot.clipID)?.chapterID) {
+                    Fact("Kapitel", chapter.name)
+                }
             }
             .accessibilityIdentifier("shot.reasons")
         } else if shot.reasons?.copiedFrom == nil {
@@ -168,5 +182,22 @@ private struct AlternativeTile: View {
             "\(clip?.name ?? alternative.clipID) · Bewertung \(alternative.score.formatted(.number.precision(.fractionLength(2))))"
         )
         .accessibilityLabel("Alternative \(clip?.name ?? alternative.clipID)")
+    }
+}
+
+extension ShotInspector {
+    static func ruleTitle(_ rule: String) -> String {
+        rule == "kapitel" ? "Kapitel" : rule == Trait.timeOfDay.id ? "Tageszeit" : rule
+    }
+
+    /// Text-Treffer in Klartext: welche Zeile, und ob sie einen deutlichen Treffer hat.
+    var lineText: String? {
+        guard let lines = project.analysis?.lines else { return nil }
+        func overlap(_ line: LyricLine) -> Double {
+            max(0, min(line.end, shot.end.time) - max(line.start, shot.start.time))
+        }
+        guard let line = lines.max(by: { overlap($0) < overlap($1) }), overlap(line) > 0 else { return nil }
+        let clear = cut.textScores.values[line.id].map { CutEngine.gateConfidence($0) >= 0.6 } ?? false
+        return clear ? "Deutlicher Text-Treffer: „\(line.text)“" : "Kein klarer Text-Treffer: „\(line.text)“"
     }
 }

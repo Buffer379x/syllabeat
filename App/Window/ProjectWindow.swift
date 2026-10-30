@@ -100,7 +100,13 @@ struct ProjectWorkspace: View {
                                 AssignChapter(
                                     clipIDs: ids, chapterID: chapter, includeTakes: false, textScores: cut.textScores))
                         },
-                        createChapter: { name, ids in createChapter(name, ids) }
+                        createChapter: { name, ids in createChapter(name, ids) },
+                        setTime: { ids, value in
+                            run(
+                                SetTraitValue(
+                                    clipIDs: ids, traitID: Trait.timeOfDay.id, value: value, textScores: cut.textScores)
+                            )
+                        }
                     ) { id in
                         selectedClipIDs = [id]
                         cut.view(clipID: id)

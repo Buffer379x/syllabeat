@@ -59,7 +59,13 @@ struct DrehbuchSheet: View {
             ForEach(Array(story.chapters.enumerated()), id: \.element.id) { index, chapter in
                 ChapterRow(
                     chapter: chapter, count: project.clips.filter { $0.chapterID == chapter.id }.count,
-                    canMoveUp: index > 0, canMoveDown: index < story.chapters.count - 1
+                    canMoveUp: index > 0, canMoveDown: index < story.chapters.count - 1,
+                    setTime: { value in
+                        run(
+                            SetChapterTrait(
+                                chapterID: chapter.id, traitID: Trait.timeOfDay.id, value: value,
+                                textScores: textScores))
+                    }
                 ) { change in
                     var chapters = story.chapters
                     switch change {
@@ -93,6 +99,29 @@ struct DrehbuchSheet: View {
                 }
             }
             Divider().gridCellUnsizedAxes(.horizontal)
+            GridRow {
+                Text("Tageszeit").font(.callout).frame(maxWidth: 110, alignment: .leading)
+                ForEach(columns) { section in
+                    Picker(
+                        "Tageszeit",
+                        selection: Binding(
+                            get: { story.traits.first { $0.id == Trait.timeOfDay.id }?.pinned[section.id] ?? "" },
+                            set: { value in
+                                run(
+                                    SetTraitPin(
+                                        traitID: Trait.timeOfDay.id, sectionID: section.id,
+                                        value: value.isEmpty ? nil : value, textScores: textScores))
+                            })
+                    ) {
+                        Text("auto").tag("")
+                        ForEach(Trait.timeOfDay.values, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 72)
+                    .help("Tageszeit für diesen Abschnitt festlegen (sonst läuft sie vorwärts: Tag → Abend → Nacht)")
+                }
+            }
             GridRow {
                 Text("Montage").font(.callout).frame(maxWidth: 110, alignment: .leading)
                 ForEach(columns) { section in
@@ -164,12 +193,16 @@ private struct ChapterRow: View {
     var count: Int
     var canMoveUp: Bool
     var canMoveDown: Bool
+    var setTime: (String?) -> Void
     var change: (Change) -> Void
     @State private var name = ""
 
     var body: some View {
         HStack(spacing: 4) {
             Circle().fill(Color(nsColor: ChapterPalette.color(chapter.color))).frame(width: 9, height: 9)
+            if let time = chapter.traits[Trait.timeOfDay.id] {
+                Image(systemName: TimeOfDaySymbol.name(time)).font(.caption).help("Vorgabe: \(time)")
+            }
             TextField("Name", text: $name)
                 .textFieldStyle(.plain)
                 .onSubmit { if !name.isEmpty, name != chapter.name { change(.rename(name)) } }
@@ -183,5 +216,12 @@ private struct ChapterRow: View {
         .labelStyle(.iconOnly)
         .buttonStyle(.borderless)
         .controlSize(.small)
+        .contextMenu {
+            Menu("Tageszeit vorgeben") {
+                ForEach(Trait.timeOfDay.values, id: \.self) { value in Button(value) { setTime(value) } }
+                Divider()
+                Button("Keine Vorgabe") { setTime(nil) }
+            }
+        }
     }
 }

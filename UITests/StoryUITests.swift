@@ -216,4 +216,35 @@ final class StoryUITests: XCTestCase {
         let story = try XCTUnwrap(try savedJSON(app, url)["story"] as? [String: Any])
         XCTAssertEqual(story["asksForChapters"] as? Bool, false)
     }
+
+    /// Drei Clips wählen, Tageszeit „Abend“ setzen; der Filter „Abend“ zeigt genau diese drei.
+    @MainActor
+    func testSetTimeOfDayForSeveralClips() throws {
+        let url = try makeProject()
+        let app = launch(url)
+        _ = timeline(app)
+        let tiles = (1...3).map { app.descendants(matching: .any).matching(identifier: "clip.c\($0)").firstMatch }
+        XCTAssertTrue(tiles[0].waitForExistence(timeout: 10))
+        tiles[0].click()
+        XCUIElement.perform(withKeyModifiers: .command) {
+            tiles[1].click()
+            tiles[2].click()
+        }
+        tiles[0].rightClick()
+        app.menuItems["Tageszeit"].hover()
+        app.menuItems["Abend"].click()
+        let json = try savedJSON(app, url)
+        let clips = try XCTUnwrap(json["clips"] as? [[String: Any]])
+        let evening = clips.filter {
+            (($0["traits"] as? [String: Any])?["tageszeit"] as? [String: Any])?["value"] as? String == "Abend"
+        }
+        XCTAssertEqual(evening.count, 3)
+        app.popUpButtons["library.filter"].click()
+        app.menuItems["Abend"].click()
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(identifier: "clip.c4").firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "clip.c3").firstMatch.exists)
+        app.popUpButtons["library.filter"].click()
+        app.menuItems["Alle Clips"].click()
+    }
 }

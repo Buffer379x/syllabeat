@@ -158,3 +158,15 @@ import Testing
         #expect(CutEngine.gateConfidence(row) < 0.2)
     }
 }
+
+@Suite struct TraitLookupTests {
+    @Test func valueUsesChapterAndFileName() {
+        var project = Project(clips: [StoryFixtures.clip("drive_sunset.mp4"), StoryFixtures.clip("wiese.mp4")])
+        project.story.chapters = [Chapter(id: "k", name: "Hof", color: 0, traits: ["tageszeit": "Tag"])]
+        project.clips[1].chapterID = "k"
+        let first = StoryResolver.value(.timeOfDay, for: project.clips[0], in: project)
+        #expect(first?.value == "Abend" && first?.source == .fileName)
+        let second = StoryResolver.value(.timeOfDay, for: project.clips[1], in: project)
+        #expect(second?.value == "Tag" && second?.source == .user)
+    }
+}

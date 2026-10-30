@@ -85,6 +85,7 @@ private struct ClipInspector: View {
             ChapterPicker(
                 clipIDs: [clip.id], current: clip.chapterID, project: project, textScores: textScores, run: run)
         }
+        TimeOfDayPicker(clips: [clip], project: project, textScores: textScores, run: run)
         TextField("Beschreibung", text: $description, prompt: Text("Was ist zu sehen?"), axis: .vertical)
             .lineLimit(2...6)
             .textFieldStyle(.roundedBorder)
@@ -545,5 +546,66 @@ struct MultiClipInspector: View {
             Text("Kapitel legst du per Rechtsklick in der Bibliothek an („Kapitel ▸ Neues Kapitel …“).")
                 .font(.callout).foregroundStyle(.secondary)
         }
+        TimeOfDayPicker(clips: clips, project: project, textScores: textScores, run: run)
+    }
+}
+
+/// Symbole und Texte für die Tageszeit.
+enum TimeOfDaySymbol {
+    static func name(_ value: String) -> String {
+        switch value {
+        case "Abend": "sunset"
+        case "Nacht": "moon.stars"
+        default: "sun.max"
+        }
+    }
+
+    static func source(_ source: TraitValue.Source) -> String {
+        switch source {
+        case .user: "von dir"
+        case .fileName: "aus Dateiname"
+        case .description: "aus Beschreibung"
+        }
+    }
+}
+
+/// Tageszeit für einen oder mehrere Clips: „Automatisch“ zeigt, was die App erkannt hat und woher.
+struct TimeOfDayPicker: View {
+    var clips: [Clip]
+    var project: Project
+    var textScores: TextScores
+    var run: (any EditCommand) -> Void
+
+    private var userValue: String {
+        let values = Set(
+            clips.map { clip in
+                clip.traits[Trait.timeOfDay.id].flatMap { $0.source == .user ? $0.value : nil } ?? ""
+            })
+        return values.count == 1 ? values.first ?? "" : ""
+    }
+
+    private var automatic: String {
+        guard clips.count == 1, var probe = clips.first else { return "Automatisch" }
+        probe.traits[Trait.timeOfDay.id] = probe.traits[Trait.timeOfDay.id].flatMap { $0.source == .user ? nil : $0 }
+        guard let found = StoryResolver.value(.timeOfDay, for: probe, in: project) else { return "Automatisch (offen)" }
+        return "Automatisch (\(found.value) · \(TimeOfDaySymbol.source(found.source)))"
+    }
+
+    var body: some View {
+        Picker(
+            "Tageszeit",
+            selection: Binding(
+                get: { userValue },
+                set: { value in
+                    run(
+                        SetTraitValue(
+                            clipIDs: Set(clips.map(\.id)), traitID: Trait.timeOfDay.id,
+                            value: value.isEmpty ? nil : value, textScores: textScores))
+                })
+        ) {
+            Text(automatic).tag("")
+            ForEach(Trait.timeOfDay.values, id: \.self) { Text($0).tag($0) }
+        }
+        .accessibilityIdentifier("clip.timeOfDay")
     }
 }

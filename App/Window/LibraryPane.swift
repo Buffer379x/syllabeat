@@ -3,7 +3,7 @@ import SyllaBeatCore
 import SyllaBeatUI
 
 enum LibraryFilter: String, CaseIterable, Identifiable {
-    case all, unused, used, favorites, warnings, excluded
+    case all, unused, used, favorites, warnings, excluded, day, evening, night, timeOpen
 
     var id: String { rawValue }
 
@@ -15,6 +15,10 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
         case .favorites: "Favoriten"
         case .warnings: "Mit Hinweisen"
         case .excluded: "Nie verwenden"
+        case .day: "Tag"
+        case .evening: "Abend"
+        case .night: "Nacht"
+        case .timeOpen: "Tageszeit offen"
         }
     }
 
@@ -26,6 +30,10 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
         case .favorites: (clip.rating ?? 0) >= 4
         case .warnings: clip.hasWarnings || missing.contains(clip.id)
         case .excluded: clip.excluded
+        case .day: StoryResolver.value(.timeOfDay, for: clip, in: project)?.value == "Tag"
+        case .evening: StoryResolver.value(.timeOfDay, for: clip, in: project)?.value == "Abend"
+        case .night: StoryResolver.value(.timeOfDay, for: clip, in: project)?.value == "Nacht"
+        case .timeOpen: StoryResolver.value(.timeOfDay, for: clip, in: project) == nil
         }
     }
 }
@@ -42,6 +50,8 @@ struct LibraryPane: View {
     /// Kapitel zuweisen (`nil` = ohne) und neues Kapitel anlegen; das Fenster baut die Befehle.
     var assign: (Set<String>, String?) -> Void = { _, _ in }
     var createChapter: (String, Set<String>) -> Void = { _, _ in }
+    /// Tageszeit setzen (`nil` = automatisch).
+    var setTime: (Set<String>, String?) -> Void = { _, _ in }
     /// Doppelklick: Clip in der Clip-Ansicht öffnen.
     var open: (String) -> Void = { _ in }
     @AppStorage("libraryByChapter") private var byChapter = true
@@ -250,6 +260,11 @@ struct LibraryPane: View {
             }
             Button("Ohne Kapitel") { assign(ids, nil) }
         }
+        Menu("Tageszeit") {
+            ForEach(Trait.timeOfDay.values, id: \.self) { value in Button(value) { setTime(ids, value) } }
+            Divider()
+            Button("Automatisch") { setTime(ids, nil) }
+        }
         Button("Alle Takes auswählen") {
             let motifs = project.motifs()
             let keys = Set(ids.compactMap { motifs[$0]?.key })
@@ -378,6 +393,11 @@ private struct ClipBadges: View {
                 Circle().fill(Color(nsColor: ChapterPalette.color(project.story.chapters[index].color)))
                     .frame(width: 8, height: 8).padding(3).background(.thinMaterial, in: Circle())
                     .help("Kapitel: \(project.story.chapters[index].name)")
+            }
+            if let time = StoryResolver.value(.timeOfDay, for: clip, in: project) {
+                badge(
+                    systemImage: TimeOfDaySymbol.name(time.value), color: .secondary,
+                    help: "Tageszeit: \(time.value) (\(TimeOfDaySymbol.source(time.source)))")
             }
             if !clip.blocked.isEmpty {
                 badge("⊘\(clip.blocked.count)", help: "\(clip.blocked.count) Sperrbereich(e): werden nie verwendet")
