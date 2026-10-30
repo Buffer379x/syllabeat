@@ -131,7 +131,9 @@ final class StoryUITests: XCTestCase {
         XCTAssertTrue(
             app.descendants(matching: .any).matching(identifier: "clip.blocked.0").firstMatch.waitForExistence(
                 timeout: 5), "Sperrbereich fehlt im Inspektor")
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "library.badge.blocked").firstMatch.exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: "clip.c1").firstMatch.label.contains("Sperrbereich"),
+            "Bibliothek zeigt die Sperre nicht")
         let blocked = try XCTUnwrap(clipJSON(try savedJSON(app, url), "c1")?["blocked"] as? [[String: Any]])
         XCTAssertEqual(blocked.count, 1)
         app.typeKey("z", modifierFlags: .command)
@@ -153,7 +155,8 @@ final class StoryUITests: XCTestCase {
         let clips = try XCTUnwrap(json["clips"] as? [[String: Any]])
         XCTAssertTrue(clips.contains { !(($0["blocked"] as? [Any]) ?? []).isEmpty }, "nichts gesperrt")
         app.menuBars.menuBarItems["Bearbeiten"].click()
-        XCTAssertTrue(app.menuItems["Rückgängig: Ausschnitt sperren"].waitForExistence(timeout: 3))
+        let undo = app.menuItems.matching(NSPredicate(format: "title CONTAINS 'Ausschnitt sperren'")).firstMatch
+        XCTAssertTrue(undo.waitForExistence(timeout: 3), "kein Undo-Eintrag „Ausschnitt sperren“")
         app.typeKey(.escape, modifierFlags: [])
     }
 

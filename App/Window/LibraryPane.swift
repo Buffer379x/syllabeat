@@ -223,7 +223,8 @@ struct LibraryPane: View {
 
     /// Klick wählt aus, ⌘- oder ⇧-Klick erweitert die Auswahl.
     private func select(_ id: String) {
-        let flags = NSEvent.modifierFlags
+        // Tasten des Klicks selbst (zuverlässig auch bei synthetischen Ereignissen), sonst der aktuelle Zustand.
+        let flags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
         if flags.contains(.command) || flags.contains(.shift) {
             selection.formSymmetricDifference([id])
         } else {
@@ -311,7 +312,10 @@ private struct ClipTile: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(clip.name), \(Format.duration(clip.meta.duration))")
+        .accessibilityLabel(
+            "\(clip.name), \(Format.duration(clip.meta.duration))"
+                + (clip.blocked.isEmpty ? "" : ", \(clip.blocked.count) Sperrbereich(e)")
+        )
         .accessibilityIdentifier("clip.\(clip.id)")
         // Auf eine Einstellung in der Bildspur ziehen ersetzt deren Clip.
         .draggable("\(TimelineCanvas.clipDragPrefix)\(clip.id)")
