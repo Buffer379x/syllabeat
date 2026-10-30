@@ -9,7 +9,7 @@ table{border-collapse:collapse;width:100%;font-size:15px}td,th{padding:6px 8px;b
 @media (prefers-color-scheme:dark){body{color:#dfe7ec;background:#14191d}h2,a{color:#5fd0b2}code,kbd{background:#26313a}aside{background:#173129}td,th{border-color:#2c3840}}
 </style>
 <h1>SyllaBeat</h1>
-<p>Musikvideo-Rohschnitt aus einem Song und einem Ordner voller Clips – Schnitte frame-genau auf Beats, Takten und gesungenen Silben. Version 0.3.0 · macOS 15 oder neuer · Apple Silicon.</p>
+<p>Musikvideo-Rohschnitt aus einem Song und einem Ordner voller Clips – Schnitte frame-genau auf Beats, Takten und gesungenen Silben. Version 0.4.0 · macOS 15 oder neuer · Apple Silicon.</p>
 <aside>Ziehe <strong>SyllaBeat.app</strong> aus dem DMG in den Programme-Ordner. Die App ist ad-hoc signiert, nicht notarisiert: Beim ersten Start meldet macOS, dass sie nicht geprüft werden kann. Öffne dann <em>Systemeinstellungen → Datenschutz &amp; Sicherheit</em> und wähle bei SyllaBeat „Dennoch öffnen“. (Der frühere Weg per Rechtsklick → „Öffnen“ gilt seit macOS 15 nicht mehr.)</aside>
 
 <h2>1 · Erster Start</h2>
@@ -48,7 +48,23 @@ table{border-collapse:collapse;width:100%;font-size:15px}td,th{padding:6px 8px;b
 <p>Im Inspektor unter <strong>Regie</strong> beschreibst du die Idee („Liebesgeschichte am Meer, Refrain bei Nacht, Ende im Sonnenuntergang“). <strong>Storyboard erstellen</strong> legt für jeden Abschnitt Stimmung, Bildidee, Suchbegriffe und Schnitttempo fest und schneidet neu; die Suchbegriffe finden die passenden Bilder über die Bildsuche. Fixierte Einstellungen bleiben. Ohne Verbindung geht es auch von Hand: Prompt kopieren, in ein beliebiges Chatfenster geben, Antwort einfügen – SyllaBeat prüft sie.</p>
 <p><strong>Datenschutz:</strong> Vor dem ersten Senden an einen Cloud-Anbieter zeigt SyllaBeat, was übertragen wird (für die Regie Songtext, Abschnitte und Regieanweisung; für Beschreibungen kleine Vorschaubilder). Videos verlassen den Mac nie. Zustimmungen lassen sich unter Einstellungen → Datenschutz widerrufen, Schlüssel liegen im Schlüsselbund.</p>
 
-<h2>8 · Export</h2>
+<h2>8 · Geschichte erzählen</h2>
+<p>Erzählen deine Clips eine Geschichte (Beispiel: Aufbruch → Hinfahrt → Tiere → Spaß → Abschied → Heimfahrt), legst du sie mit wenigen Klicks fest; die Engine hält sie ein.</p>
+<h3>Kapitel</h3>
+<p>In der Bibliothek Clips auswählen (<kbd>⌘</kbd>-Klick für mehrere), Rechtsklick → <strong>Kapitel ▸ Neues Kapitel …</strong>. „Alle Takes auswählen“ nimmt Clips mit demselben Motiv im Dateinamen mit (<code>pigs</code>, <code>pigs (2)</code> …). Mit Kapiteln gruppiert die Bibliothek nach Kapitel; neue Clips bekommen einen Vorschlag („→ Tiere“ sicher, „?“ zum Prüfen), <strong>Vorschläge übernehmen</strong> ordnet sie ein.</p>
+<h3>Drehbuch</h3>
+<p><strong>Drehbuch</strong> (<kbd>⇧⌘D</kbd>) zeigt links die Kapitel in Erzählreihenfolge, rechts je Songabschnitt, welche Kapitel vorkommen: ● Hauptkapitel, ◐ Beimischung, · nicht (Klick schaltet weiter). Innerhalb eines Abschnitts läuft die Geschichte nur vorwärts; Refrains sind <em>Montage</em> und dürfen springen. <strong>Vorschlagen</strong> ordnet die Kapitel anhand von Songtext und Bildähnlichkeit zu, du korrigierst einzelne Felder. Die Zeile <em>Material</em> warnt (⚠), wenn ein Kapitel zu wenig Clips hat.</p>
+<h3>Tageszeit und Kontinuität</h3>
+<p>Die Tageszeit läuft vorwärts: erst Tag, dann Abend, dann Nacht – außer du legst einen Abschnitt in der Drehbuch-Zeile <em>Tageszeit</em> fest. Erkannt wird sie aus Nutzerangaben, Dateinamen (<code>evening</code>, <code>sunset</code> …), einer Kapitel-Vorgabe (Rechtsklick auf ein Kapitel) und Bildbeschreibungen. Clips setzt du per Rechtsklick → <strong>Tageszeit</strong> oder im Inspektor; der Filter „Tageszeit offen“ zeigt, was noch fehlt. Takes desselben Motivs folgen nicht direkt aufeinander, Wasserzeichen werden gemieden, wenn es saubere Takes gibt, und passt ein Motiv zu einer Zeile, hält der Schnitt es statt fremde Bilder dazwischenzuschieben.</p>
+<h3>Sperrbereiche (KI-Fehler)</h3>
+<p>Doppelklick auf einen Clip öffnet die <strong>Clip-Ansicht</strong>: abspielen, mit <kbd>I</kbd> und <kbd>O</kbd> markieren, mit <kbd>X</kbd> sperren (ohne Markierung ±0,5 s um die Abspielposition), <kbd>⌥X</kbd> hebt die Sperre an der Abspielposition auf, <kbd>↑</kbd>/<kbd>↓</kbd> wechselt den Clip, <kbd>Esc</kbd> zurück zum Schnitt. Fällt ein Fehler beim Abspielen des Schnitts auf: Einstellung wählen und <kbd>X</kbd> – der gezeigte Ausschnitt wird gesperrt und neu geschnitten. Gesperrtes kommt nie in Schnitt, Vorschau oder Export. Sperrbereiche, Bewertung, „Nie verwenden“ und eigene Tageszeiten merkt sich SyllaBeat je Datei auch für andere Projekte (Einstellungen → Allgemein → Clip-Wissen).</p>
+<h3>Ungereimtheiten und „Was fehlt?“</h3>
+<p>Der Chip <strong>Stimmig</strong> bzw. <strong>n Ungereimtheiten</strong> in der Werkzeugleiste listet, was nicht passt (Tageszeit springt zurück, Kapitel außerhalb des Drehbuchs, ausgewichen bei Materialmangel, Wasserzeichen …) – mit Sprung zur Stelle und Abhilfe; orange Marker zeigen die Stellen in der Bildspur. <strong>Was fehlt?</strong> (im Drehbuch) nennt Zeilen ohne klares Bild, knappe Kapitel und Motive nur mit Wasserzeichen, jeweils mit Dateinamen und Prompt für deinen KI-Generator; die Stil-Vorlage oben wird jedem Prompt vorangestellt. Zeilen markierst du in der Textspur per Rechtsklick („Zeile braucht ein Bild“ / „Bild für Zeile egal“).</p>
+
+<h2>9 · Video für YouTube</h2>
+<p>Das <strong>Timeline-Format</strong> (Größe, Bildrate, Bildanpassung) stellst du im Projekt-Inspektor ein; passt das Material besser zu einer anderen Bildrate, schlägt ein Hinweis das Umstellen vor. Im Export-Dialog rendert das Ziel <strong>Video (YouTube)</strong> den Schnitt als MP4 (H.264 oder HEVC) in Timeline-Format und -Bildrate – aus derselben Frame-Tabelle wie Vorschau und Exporte – und legt <code>youtube-kapitel.txt</code> (Zeitmarken für die Beschreibung), Untertitel (SRT) und ein Vorschaubild (1280×720) daneben. Für KI-generierte Inhalte in YouTube Studio prüfen, ob eine Kennzeichnung nötig ist.</p>
+
+<h2>10 · Export</h2>
 <p><strong>Exportieren …</strong> (<kbd>⌘E</kbd>) fragt zuerst nach dem Zielprogramm:</p>
 <table>
 <tr><th>Ziel</th><th>Dateien</th><th>Import</th></tr>
@@ -56,23 +72,26 @@ table{border-collapse:collapse;width:100%;font-size:15px}td,th{padding:6px 8px;b
 <tr><td>DaVinci Resolve</td><td><code>.fcpxml</code> mit Song, dazu <code>.edl</code> (nur Bild) und eine Marker-EDL</td><td><em>Datei → Importieren → Zeitleiste</em>; Marker über „Zeitleistenmarker aus EDL“</td></tr>
 <tr><td>Premiere Pro</td><td><code>.xml</code> (FCP 7)</td><td><em>Datei → Importieren</em></td></tr>
 <tr><td>Nur Archiv</td><td>Schnittliste, Clip-Katalog (JSON, CSV), OpenTimelineIO</td><td>–</td></tr>
+<tr><td>Video (YouTube)</td><td><code>.mp4</code>, <code>youtube-kapitel.txt</code>, <code>.srt</code>, <code>vorschaubild.jpg</code></td><td>direkt hochladen</td></tr>
 </table>
 <p>„Erweitert“ zeigt alle Formate, auch Untertitel (SRT) und Songtext mit Zeiten (LRC). Die Timeline-Dateien verweisen auf die Medien; nach dem Verschieben von Dateien neu exportieren. Projekte finden verschobene Clips beim Öffnen selbst wieder; sonst hilft <em>Ablage → Medien neu verknüpfen …</em>.</p>
 
-<h2>9 · Tastenkürzel</h2>
+<h2>11 · Tastenkürzel</h2>
 <table>
 <tr><td><kbd>Leertaste</kbd></td><td>Abspielen / Anhalten</td><td><kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd></td><td>rückwärts / anhalten / vorwärts (bei Auswahl fixiert <kbd>L</kbd>)</td></tr>
 <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>vorige / nächste Einstellung</td><td><kbd>⌥←</kbd> <kbd>⌥→</kbd></td><td>ein Frame</td></tr>
 <tr><td><kbd>B</kbd></td><td>Schnitt an der Abspielposition (nächster Beat)</td><td><kbd>⌫</kbd></td><td>Einstellung mit der vorigen verschmelzen</td></tr>
 <tr><td>Kante ziehen</td><td>Schnitt verschieben (rastet an Beats, <kbd>⌥</kbd> an Wörtern, <kbd>⌘</kbd> an Frames)</td><td><kbd>⌘R</kbd> / <kbd>⇧⌘R</kbd></td><td>neu würfeln / Auswahl neu schneiden</td></tr>
 <tr><td><kbd>⌘+</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd></td><td>Zoom, alles zeigen</td><td><kbd>⌘E</kbd></td><td>Exportieren</td></tr>
+<tr><td><kbd>X</kbd></td><td>Ausschnitt sperren (Bildspur, Clip-Ansicht)</td><td><kbd>I</kbd> <kbd>O</kbd></td><td>Anfang / Ende markieren (Clip-Ansicht)</td></tr>
+<tr><td><kbd>⇧⌘D</kbd></td><td>Drehbuch</td><td>Doppelklick auf Clip</td><td>Clip-Ansicht</td></tr>
 <tr><td><kbd>⌘Z</kbd> <kbd>⇧⌘Z</kbd></td><td>Rückgängig / Wiederholen für alles</td><td><kbd>⌘?</kbd></td><td>diese Hilfe</td></tr>
 </table>
 
-<h2>10 · Modelle und Speicherorte</h2>
+<h2>12 · Modelle und Speicherorte</h2>
 <p>Einstellungen → Modelle zeigt alle Modelle mit Größe, Speicherbedarf und der Empfehlung für diesen Mac; Laden lässt sich fortsetzen und wird per Prüfsumme kontrolliert. Modelle liegen unter <code>~/Library/Application Support/SyllaBeat/Models</code> (verlegbar), Vorschaubilder und Embeddings im Zwischenspeicher (Einstellungen → Allgemein, löschbar). Ollama- und Whisper-Modelle aus 0.2 braucht 0.3 nicht mehr; die Einstellungen zeigen sie mit Größe und bieten das Löschen an.</p>
 
-<h2>11 · Wenn etwas nicht klappt</h2>
+<h2>13 · Wenn etwas nicht klappt</h2>
 <ul>
 <li><strong>Beats liegen daneben:</strong> Tempo ×2 oder ÷2, bei Triolengefühl ×¾ oder ×4⁄3; mit Rechtsklick den Taktanfang setzen.</li>
 <li><strong>Kein Ton in Resolve:</strong> die FCPXML importieren (die FCP-7-XML bringt in Resolve nur das Bild).</li>

@@ -2,7 +2,7 @@
 
 Native macOS-App für Apple Silicon, die aus einem Song und einem Ordner voller Videoclips einen Musikvideo-Rohschnitt baut: Schnitte frame-genau auf Beats, Takten und gesungenen Silben, Bilder passend zu Text und Stimmung, Export nach Final Cut Pro, DaVinci Resolve und Premiere. Oberfläche auf Deutsch, alle Analysen lokal.
 
-**Version 0.3.0** · macOS 15+ · Apple Silicon · Swift/SwiftUI
+**Version 0.4.0** · macOS 15+ · Apple Silicon · Swift/SwiftUI
 
 ## Installation
 
@@ -21,6 +21,8 @@ Modelle (Gesangserkennung, Bildsuche, Bildbeschreibung) lädt die App bei Bedarf
 - **Schnitt-Engine:** Stil-Presets und Regler, Refrain-Modi, Fixieren, Neu würfeln, Teilneuberechnung, drei Varianten, „Warum dieser Clip?“ mit Alternativen. Invarianten per Property-Test über 10.000 Projekte.
 - **Vorschau:** synchroner Player aus derselben Frame-Tabelle wie die Exporte, Textzeile als Overlay, Füllen/Einpassen.
 - **KI (optional):** Apple Intelligence, lokale MLX-Modelle (Qwen3-VL), Ollama, OpenAI-kompatible Server, Anthropic oder von Hand. Storyboard aus Regieanweisung und Songtext; Bildbeschreibungen als fortsetzbare Hintergrundaufgabe. Vor jedem ersten Senden an einen Cloud-Anbieter zeigt die App, was übertragen wird; Videos verlassen den Mac nie.
+- **Geschichte erzählen:** Kapitel und Drehbuch (welche Kapitel in welchem Songabschnitt), Tageszeit läuft vorwärts, Sperrbereiche für KI-Fehler (Clip-Ansicht, `X`), Motive und Takes aus Dateinamen, Prüfung auf Ungereimtheiten, „Was fehlt?“ mit Prompt-Vorschlägen für neue KI-Clips.
+- **Video für YouTube:** MP4 direkt rendern (H.264/HEVC), dazu YouTube-Kapitel, Untertitel und Vorschaubild; Timeline-Format und Bildrate mit Vorschlag aus dem Material.
 - **Export:** FCPXML 1.8 mit Markern und Schlagwörtern, FCP-7-XML, CMX-3600-EDL (mit korrekten Quellzeiten bei abweichender Bildrate und Kamera-Timecode), OpenTimelineIO, Schnittliste und Clip-Katalog, SRT/LRC.
 
 ## Entwickeln

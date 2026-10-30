@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.0 – 2026-10-30
+
+Geschichten erzählen: Aus Clips einer Geschichte entsteht ein Schnitt, der ihrer Reihenfolge und dem Songtext folgt, ohne Tag-Nacht-Sprünge und ohne KI-Fehler im Bild – und das fertige Video für YouTube.
+
+### Neu
+- **Kapitel und Drehbuch:** Clips in Kapitel einteilen (Mehrfachauswahl, „Alle Takes auswählen“), im Drehbuch (⇧⌘D) je Songabschnitt Haupt- und Beimischungskapitel festlegen. Die Geschichte läuft innerhalb eines Abschnitts nur vorwärts, Refrains sind Montage. „Vorschlagen“ ordnet Kapitel ohne KI aus Songtext und Bildähnlichkeit zu. Spur „Kapitel“ in der Timeline, Bibliothek nach Kapitel gruppiert, Kapitel-Vorschläge für neue Clips.
+- **Kontinuität:** Die Tageszeit läuft vorwärts (Tag → Abend → Nacht), außer ein Abschnitt ist festgelegt; erkannt aus Nutzerangaben, Dateinamen, Kapitel-Vorgaben und Bildbeschreibungen (die Beschreibung liefert jetzt die Tageszeit mit).
+- **Sperrbereiche für KI-Fehler:** Clip-Ansicht zum Sichten (Doppelklick, `I`/`O`/`X`, `↑`/`↓`), `X` in der Bildspur sperrt den gezeigten Ausschnitt und schneidet neu. Gesperrtes kommt nie in Schnitt, Vorschau oder Export.
+- **Motive aus Dateinamen:** Takes, Generator, Wasserzeichen und Figurennamen werden erkannt. Takes desselben Motivs folgen nicht direkt aufeinander, Wasserzeichen werden gemieden, passende Motive über eine Zeile gehalten, keine „A · B · A“-Sandwiches. Neuer Refrain-Modus „Gleiche Motive, andere Takes“.
+- **Text ↔ Bild:** nur klare Treffer zählen, Pronomen erben das Motiv der Vorzeile, Figurennamen aus Dateinamen.
+- **Ungereimtheiten:** Status-Chip mit Liste, Sprung zur Stelle, Abhilfe und Markern in der Bildspur.
+- **Was fehlt?:** Zeilen ohne klares Bild, knappe Kapitel und Motive nur mit Wasserzeichen – mit Dateinamen und Prompt für den KI-Generator.
+- **Video für YouTube:** Export-Ziel „Video (YouTube)“ rendert MP4 (H.264/HEVC) aus derselben Frame-Tabelle wie Vorschau und Exporte, dazu YouTube-Kapitel, SRT und Vorschaubild.
+- **Timeline-Format** (Größe, Bildrate, Bildanpassung) im Inspektor wählbar, mit Vorschlag aus dem Material.
+- **Clip-Wissen projektübergreifend:** Sperrbereiche, Bewertung, „Nie verwenden“ und eigene Tageszeiten gelten je Datei auch in anderen Projekten (abschaltbar).
+- `sbtool`: `geschichte`, `drehbuch`, `drehliste`, `render`.
+
+### Behoben
+- **Songtext:** Kollabierte Wortzeiten von Whisper (ganze Strophen auf eine Sekunde gelegt) werden erkannt und neu verteilt und markiert; Klammerzeilen wie „(End)“ gelten nicht als Gesang.
+
+### Geändert
+- **Projektformat v3:** 0.4 öffnet Projekte aus 0.3; 0.3.0 lehnt Projekte aus 0.4 ab, statt beim Sichern Kapitel und Sperrbereiche zu verlieren.
+
 ## 0.3.0 – 2026-10-29
 
 Neu geschrieben als native macOS-App in Swift und SwiftUI. Das DMG ist rund 10 MB groß statt 1,2 GB, Projekte aus 0.2 öffnen sich direkt.
