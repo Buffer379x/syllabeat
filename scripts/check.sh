@@ -1,5 +1,5 @@
 #!/bin/sh
-# Prüfungen für SyllaBeat 0.3, lokal und im CI gleich: Formatierung, Paket-Tests, Selbsttest, App-Build, UI-Tests.
+# Prüfungen für SyllaBeat, lokal und im CI gleich: Formatierung, Paket-Tests, Selbsttest, App-Build, UI-Tests.
 # Aufruf aus dem Repository-Ordner: scripts/check.sh   (SKIP_UI_TESTS=1 baut die App nur, ohne UI-Tests)
 set -eu
 cd "$(dirname "$0")/.."
@@ -22,14 +22,19 @@ swift run --package-path Packages/SyllaBeatKit --quiet sbtool selftest
 ACTION=test
 [ "${SKIP_UI_TESTS:-0}" = 1 ] && ACTION=build
 echo "== App: xcodebuild $ACTION"
-# Vollständiges Protokoll in eine Datei; angezeigt werden Fehler, Testfälle und das Ergebnis
-# (auch die Meldungen fehlgeschlagener UI-Tests, die -quiet verschlucken würde).
+# Vollständiges Protokoll in eine Datei; laufend angezeigt werden Fehler, Testfälle und das Ergebnis
+# (auch die Meldungen fehlgeschlagener UI-Tests, die -quiet verschlucken würde). Ein hängender Test
+# scheitert nach 3 Minuten einzeln, statt den ganzen Lauf ins Zeitlimit zu treiben.
 mkdir -p build
-STATUS=0
-xcodebuild -project SyllaBeat.xcodeproj -scheme SyllaBeat -configuration Debug \
-    -destination 'platform=macOS,arch=arm64' -derivedDataPath "$DERIVED" "$ACTION" > build/xcodebuild.log 2>&1 || STATUS=$?
-grep -E "error:|Test Case .*(passed|failed|skipped)|\*\* (TEST|BUILD)" build/xcodebuild.log || true
-[ "$STATUS" = 0 ] || exit "$STATUS"
+rm -f build/xcodebuild.status
+TIMEOUTS=""
+[ "$ACTION" = test ] && TIMEOUTS="-test-timeouts-enabled YES -default-test-execution-time-allowance 180"
+# shellcheck disable=SC2086
+{ xcodebuild -project SyllaBeat.xcodeproj -scheme SyllaBeat -configuration Debug \
+    -destination 'platform=macOS,arch=arm64' -derivedDataPath "$DERIVED" $TIMEOUTS "$ACTION" 2>&1 \
+    || echo $? > build/xcodebuild.status; } \
+    | tee build/xcodebuild.log | grep --line-buffered -E "error:|Test Case .*(passed|failed|skipped)|\*\* (TEST|BUILD)" || true
+[ ! -f build/xcodebuild.status ] || exit "$(cat build/xcodebuild.status)"
 
 echo "== Version"
 WANTED=$(sed -n 's/^MARKETING_VERSION *= *//p' Config/Version.xcconfig)
