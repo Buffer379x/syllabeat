@@ -159,3 +159,20 @@ public struct SourceRange: Codable, Sendable, Equatable, Hashable {
         from < end - 1e-9 && to > start + 1e-9
     }
 }
+
+extension [SourceRange] {
+    /// Auf `[0, length]` begrenzt, sortiert, überlappende und berührende Bereiche zusammengeführt, leere entfernt.
+    public func normalized(length: Double) -> [SourceRange] {
+        var result: [SourceRange] = []
+        for range in map({ SourceRange(start: Swift.max(0, $0.start), end: Swift.min(length, $0.end)) })
+            .filter({ $0.end > $0.start }).sorted(by: { $0.start < $1.start })
+        {
+            if let last = result.last, range.start <= last.end {
+                result[result.count - 1].end = Swift.max(last.end, range.end)
+            } else {
+                result.append(range)
+            }
+        }
+        return result
+    }
+}
