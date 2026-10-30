@@ -133,7 +133,7 @@ struct ProjectWorkspace: View {
                     }
                 }
                 .frame(minHeight: 320, maxHeight: .infinity)
-                TimelinePane(project: project, song: song, cut: cut) { command in
+                TimelinePane(project: project, song: song, cut: cut, markers: project.inconsistencyMarkers) { command in
                     errorMessage = document.run(command, undoManager: undoManager)
                 }
                 .frame(
@@ -307,6 +307,7 @@ struct ProjectWorkspace: View {
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .principal) {
             StatusChips(project: project)
+            InconsistencyChip(project: project, cut: cut) { song.playback.seek(to: $0) }
         }
         ToolbarItem(placement: .primaryAction) {
             CutToolbar(project: project, cut: cut)

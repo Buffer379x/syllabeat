@@ -9,6 +9,8 @@ struct TimelinePane: View {
     var project: Project
     var song: SongController
     var cut: CutController
+    /// Ungereimtheiten als Marker in der Bildspur.
+    var markers: [TimelineMarker] = []
     var run: (any EditCommand) -> Void
     /// Pixel je Sekunde; `nil` heißt: ganzer Song passt in die Breite.
     @State private var zoom: Double?
@@ -155,9 +157,6 @@ struct TimelinePane: View {
         let result = min(800, max(minimum, value))
         return result <= minimum * 1.001 ? nil : result
     }
-
-    /// Ungereimtheiten als Marker (ab N5); vorerst leer.
-    var markers: [TimelineMarker] = []
 
     private func content(_ analysis: SongAnalysis) -> TimelineContent {
         let shots = (project.cut?.shots ?? []).map { shot in

@@ -15,7 +15,9 @@ final class StoryUITests: XCTestCase {
     }
 
     /// Projekt mit Songanalyse (41 s, 120 BPM) und `count` analysierten Clips, noch ohne Schnitt.
-    private func makeProject(count: Int = 6, extra: [String: Any] = [:]) throws -> URL {
+    private func makeProject(
+        count: Int = 6, extra: [String: Any] = [:], clipExtra: [Int: [String: Any]] = [:]
+    ) throws -> URL {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures")
         var clips: [[String: Any]] = []
         for index in 0..<count {
@@ -37,6 +39,7 @@ final class StoryUITests: XCTestCase {
                 ],
             ])
         }
+        for (index, values) in clipExtra { clips[index].merge(values) { _, new in new } }
         let beats = (0..<81).map { ["time": 0.5 + Double($0) * 0.5, "isDownbeat": $0 % 4 == 0] as [String: Any] }
         let analysis: [String: Any] = [
             "duration": 41.0, "tempo": 120.0, "meter": 4, "beats": beats,
@@ -246,5 +249,26 @@ final class StoryUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "clip.c3").firstMatch.exists)
         app.popUpButtons["library.filter"].click()
         app.menuItems["Alle Clips"].click()
+    }
+
+    /// Kapitel „Wald“ besteht nur aus einem fast ganz gesperrten Clip: Die Engine weicht aus, der Chip meldet es,
+    /// „Zeigen“ wählt die Einstellungen aus.
+    @MainActor
+    func testInconsistencyJumpsToShot() throws {
+        let url = try makeProject(
+            extra: ["story": ["chapters": [["id": "k", "name": "Wald", "color": 0]], "plan": ["a": ["k": "main"]]]],
+            clipExtra: [0: ["chapterID": "k", "blocked": [["start": 0.5, "end": 2.4]]]])
+        let app = launch(url)
+        _ = timeline(app)
+        let chip = app.descendants(matching: .any).matching(identifier: "chip.inconsistencies").firstMatch
+        XCTAssertTrue(chip.waitForExistence(timeout: 10))
+        XCTAssertTrue(chip.label.contains("Ungereimtheit"), chip.label)
+        chip.click()
+        let row = app.descendants(matching: .any).matching(identifier: "inconsistency.relaxed").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.buttons["Zeigen"].click()
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: "shot.reasons").firstMatch.waitForExistence(timeout: 5)
+        )
     }
 }
