@@ -24,6 +24,7 @@ public enum ClipDescriber {
         var schlagwoerter: [String]
         var szenen: [Scene]
         var dateiname: String
+        var tageszeit: String?
     }
 
     /// Szenen, die ins Bild kommen (gleichmäßig verteilt).
@@ -54,6 +55,7 @@ public enum ClipDescriber {
                                 .init("inhalt", .string("Ein eigener Satz nur zu diesem Bild")),
                             ]),
                         minimum: sceneCount, maximum: sceneCount)),
+                .init("tageszeit", .string("Tageszeit im Bild", choices: ["Tag", "Abend", "Nacht", "unklar"])),
                 .init(
                     "dateiname",
                     .string(
@@ -94,6 +96,11 @@ public enum ClipDescriber {
             updated.scenes[position].description = text
         }
         updated.visionModel = model
+        if let value = answer.tageszeit, Trait.timeOfDay.values.contains(value),
+            updated.traits[Trait.timeOfDay.id]?.source != .user
+        {
+            updated.traits[Trait.timeOfDay.id] = TraitValue(value: value, source: .description)
+        }
         return updated
     }
 
@@ -105,6 +112,8 @@ public enum ClipDescriber {
         public var filenameSuggestion: String?
         public var scenes: [String: String]
         public var model: String
+        /// Tageszeit aus der Beschreibung (ab 0.4); fehlt in älteren Einträgen.
+        public var timeOfDay: String?
 
         public init(_ clip: Clip) {
             description = clip.description
@@ -117,6 +126,7 @@ public enum ClipDescriber {
                 },
                 uniquingKeysWith: { first, _ in first })
             model = clip.visionModel ?? ""
+            timeOfDay = clip.traits[Trait.timeOfDay.id].flatMap { $0.source == .description ? $0.value : nil }
         }
 
         public func apply(to clip: Clip) -> Clip {
@@ -126,6 +136,9 @@ public enum ClipDescriber {
             updated.tags = tags
             updated.filenameSuggestion = filenameSuggestion
             updated.visionModel = model
+            if let timeOfDay, updated.traits[Trait.timeOfDay.id]?.source != .user {
+                updated.traits[Trait.timeOfDay.id] = TraitValue(value: timeOfDay, source: .description)
+            }
             for index in updated.scenes.indices {
                 if let text = scenes[MediaCache.key(forSceneStart: updated.scenes[index].start)] {
                     updated.scenes[index].description = text
