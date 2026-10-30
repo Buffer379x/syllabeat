@@ -54,6 +54,7 @@ struct DrehbuchSheet: View {
         }
         .padding(20)
         .frame(minWidth: 760, minHeight: 360)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("drehbuch")
     }
 

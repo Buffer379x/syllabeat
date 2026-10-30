@@ -85,9 +85,13 @@ struct InconsistencyChip: View {
         }
     }
 
+    /// Wählt die erste betroffene Einstellung, damit der Inspektor ihre Begründung zeigt; „Neu schneiden“ wirkt
+    /// weiter auf alle betroffenen.
     private func show(_ finding: Inconsistency) {
-        cut.selection = Set(finding.shotIDs)
-        if let start = project.cut?.shots.first(where: { finding.shotIDs.contains($0.id) })?.start.time { seek(start) }
+        if let shot = project.cut?.shots.first(where: { finding.shotIDs.contains($0.id) }) {
+            cut.selection = [shot.id]
+            seek(shot.start.time)
+        }
         shows = false
     }
 }

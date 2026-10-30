@@ -255,7 +255,7 @@ final class StoryUITests: XCTestCase {
     }
 
     /// Kapitel „Wald“ besteht nur aus einem fast ganz gesperrten Clip: Die Engine weicht aus, der Chip meldet es,
-    /// „Zeigen“ wählt die Einstellungen aus.
+    /// „Zeigen“ wählt die erste betroffene Einstellung aus.
     @MainActor
     func testInconsistencyJumpsToShot() throws {
         let url = try makeProject(
