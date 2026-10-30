@@ -77,7 +77,9 @@ public enum StoryResolver {
 
 extension StoryResolver {
     /// Wert eines Merkmals für einen Clip im Projekt (Kapitel-Vorgabe und Dateiname eingerechnet), mit Herkunft.
-    public static func value(_ trait: Trait, for clip: Clip, in project: Project) -> (value: String, source: TraitValue.Source)? {
+    public static func value(
+        _ trait: Trait, for clip: Clip, in project: Project
+    ) -> (value: String, source: TraitValue.Source)? {
         let groups = FileNameMotif.groups(in: project.clips.map(\.name))
         return traitValue(
             clip, trait: trait, chapter: project.story.chapter(withID: clip.chapterID),
