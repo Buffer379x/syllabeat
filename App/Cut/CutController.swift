@@ -34,6 +34,8 @@ final class CutController {
     var errorMessage: String?
     /// Export-Dialog offen (Werkzeugleiste, ⌘E).
     var showsExport = false
+    /// Drehbuch-Tafel offen (⇧⌘D).
+    var showsDrehbuch = false
     /// Clip in der Clip-Ansicht (Sichten und Sperren); `nil` zeigt den Schnitt.
     var viewedClipID: String?
     @ObservationIgnored let clipPlayer = ClipPlayer()

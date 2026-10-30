@@ -38,7 +38,8 @@ struct ProjectWorkspace: View {
     var ai: AIController
     @Environment(\.undoManager) private var undoManager
     @Environment(\.documentConfiguration) private var configuration
-    @State private var selectedClipID: String?
+    @State private var selectedClipIDs: Set<String> = []
+    private var selectedClipID: String? { selectedClipIDs.count == 1 ? selectedClipIDs.first : nil }
     @State private var showsInspector = true
     @State private var backupNotice: String?
     @State private var errorMessage: String?
@@ -75,6 +76,13 @@ struct ProjectWorkspace: View {
                     }
                 ) { dismissedFormat = suggested }
             }
+            if showsChapterBanner {
+                Banner(
+                    text: "Erzählen deine Clips eine Geschichte? Mit Kapiteln folgt der Schnitt ihrer Reihenfolge.",
+                    systemImage: "book", identifier: "chapterBanner", actionTitle: "Kapitel anlegen",
+                    action: { cut.showsDrehbuch = true }
+                ) { run(SetAsksForChapters(false)) }
+            }
             if ai.offerImprovement {
                 Banner(
                     text:
@@ -85,8 +93,16 @@ struct ProjectWorkspace: View {
             }
             VSplitView {
                 HSplitView {
-                    LibraryPane(project: project, media: media, selection: $selectedClipID) { id in
-                        selectedClipID = id
+                    LibraryPane(
+                        project: project, media: media, selection: $selectedClipIDs,
+                        assign: { ids, chapter in
+                            run(
+                                AssignChapter(
+                                    clipIDs: ids, chapterID: chapter, includeTakes: false, textScores: cut.textScores))
+                        },
+                        createChapter: { name, ids in createChapter(name, ids) }
+                    ) { id in
+                        selectedClipIDs = [id]
                         cut.view(clipID: id)
                     }
                     .frame(minWidth: 220, idealWidth: 270, maxWidth: 460)
@@ -104,7 +120,7 @@ struct ProjectWorkspace: View {
                     if showsInspector {
                         InspectorPane(
                             document: document, media: media, song: song, cut: cut, ai: ai,
-                            selectedClipID: selectedClipID,
+                            selectedClipID: selectedClipID, selectedClipIDs: selectedClipIDs,
                             errorMessage: $errorMessage
                         )
                         .frame(minWidth: 250, idealWidth: 290, maxWidth: 460)
@@ -175,6 +191,11 @@ struct ProjectWorkspace: View {
                 showsWelcome = false
             }
         }
+        .sheet(isPresented: Bindable(cut).showsDrehbuch) {
+            DrehbuchSheet(project: project, textScores: cut.textScores, run: { run($0) }) {
+                cut.showsDrehbuch = false
+            }
+        }
         .sheet(isPresented: Bindable(cut).showsExport) {
             ExportSheet(project: project) { cut.showsExport = false }
         }
@@ -184,8 +205,8 @@ struct ProjectWorkspace: View {
         .onChange(of: previewSignal, initial: true) { _, _ in cut.updatePreview() }
         .task(id: textSignal) { await cut.refreshTextScores() }
         // Clip oder Einstellung: Der Inspektor zeigt immer nur eines davon.
-        .onChange(of: selectedClipID) { _, id in if id != nil { cut.selection = [] } }
-        .onChange(of: cut.selection) { _, ids in if !ids.isEmpty { selectedClipID = nil } }
+        .onChange(of: selectedClipIDs) { _, ids in if !ids.isEmpty { cut.selection = [] } }
+        .onChange(of: cut.selection) { _, ids in if !ids.isEmpty { selectedClipIDs = [] } }
         .onChange(of: project.cut) { old, new in cut.remapSelection(from: old, to: new) }
         .alert(
             "Aktion nicht möglich",
@@ -230,12 +251,32 @@ struct ProjectWorkspace: View {
         return "\(media.sceneIndex?.count ?? 0)#\(lines)#\(terms)#\(described)"
     }
 
+    /// Banner nach dem ersten Schnitt, solange es keine Kapitel gibt (ab 10 Clips).
+    private var showsChapterBanner: Bool {
+        project.story.asksForChapters && project.story.chapters.isEmpty && project.clips.count >= 10
+            && project.cut != nil
+    }
+
+    private func run(_ command: some EditCommand) {
+        errorMessage = document.run(command, undoManager: undoManager)
+    }
+
+    /// Neues Kapitel am Ende der Erzählreihenfolge, die Clips kommen hinein.
+    private func createChapter(_ name: String, _ ids: Set<String>) {
+        let chapter = Chapter(
+            id: "k-\(UUID().uuidString.prefix(8).lowercased())", name: name, color: project.story.chapters.count)
+        run(SetChapters(chapters: project.story.chapters + [chapter], textScores: cut.textScores))
+        if !ids.isEmpty {
+            run(AssignChapter(clipIDs: ids, chapterID: chapter.id, includeTakes: false, textScores: cut.textScores))
+        }
+    }
+
     /// ↑/↓ in der Clip-Ansicht: voriger/nächster Clip in Bibliotheksreihenfolge.
     private func stepViewedClip(_ offset: Int) {
         guard let id = cut.viewedClipID, let index = project.clips.firstIndex(where: { $0.id == id }) else { return }
         let next = index + offset
         guard project.clips.indices.contains(next) else { return }
-        selectedClipID = project.clips[next].id
+        selectedClipIDs = [project.clips[next].id]
         cut.view(clipID: project.clips[next].id)
     }
 
@@ -265,6 +306,13 @@ struct ProjectWorkspace: View {
             CutToolbar(project: project, cut: cut)
         }
         ToolbarItem(placement: .primaryAction) {
+            Button("Drehbuch", systemImage: "list.bullet.rectangle") { cut.showsDrehbuch = true }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+                .disabled(project.analysis == nil)
+                .help("Kapitel und Drehbuch: welche Kapitel in welchem Songabschnitt (⇧⌘D)")
+                .accessibilityIdentifier("toolbar.drehbuch")
+        }
+        ToolbarItem(placement: .primaryAction) {
             Button("Exportieren …", systemImage: "square.and.arrow.up") { cut.showsExport = true }
                 .disabled(project.cut == nil)
                 .help("Timeline für Final Cut Pro, DaVinci Resolve oder Premiere exportieren (⌘E)")
@@ -287,7 +335,7 @@ struct ProjectWorkspace: View {
     private func removeSelectedClip() {
         guard let id = selectedClipID else { return }
         errorMessage = document.run(RemoveClips(clipIDs: [id]), undoManager: undoManager)
-        if errorMessage == nil { selectedClipID = nil }
+        if errorMessage == nil { selectedClipIDs = [] }
     }
 
     private func createLegacyBackupIfNeeded() {

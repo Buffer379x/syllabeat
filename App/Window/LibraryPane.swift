@@ -38,9 +38,16 @@ extension Clip {
 struct LibraryPane: View {
     var project: Project
     var media: MediaController
-    @Binding var selection: String?
+    @Binding var selection: Set<String>
+    /// Kapitel zuweisen (`nil` = ohne) und neues Kapitel anlegen; das Fenster baut die Befehle.
+    var assign: (Set<String>, String?) -> Void = { _, _ in }
+    var createChapter: (String, Set<String>) -> Void = { _, _ in }
     /// Doppelklick: Clip in der Clip-Ansicht öffnen.
     var open: (String) -> Void = { _ in }
+    @AppStorage("libraryByChapter") private var byChapter = true
+    @State private var showsNewChapter = false
+    @State private var newChapterName = ""
+    @State private var pendingClipIDs: Set<String> = []
     @State private var query = ""
     @AppStorage("libraryFilter") private var filter = LibraryFilter.all
     @AppStorage("libraryShowsGrid") private var showsGrid = true
@@ -131,6 +138,12 @@ struct LibraryPane: View {
                 }
                 .labelsHidden()
                 Spacer(minLength: 0)
+                if !project.story.chapters.isEmpty {
+                    Toggle(isOn: $byChapter) { Image(systemName: "rectangle.3.group") }
+                        .toggleStyle(.button)
+                        .help("Nach Kapitel gruppieren")
+                        .accessibilityIdentifier("library.byChapter")
+                }
                 Picker("Ansicht", selection: $showsGrid) {
                     Image(systemName: "square.grid.2x2").tag(true).accessibilityLabel("Raster")
                     Image(systemName: "list.bullet").tag(false).accessibilityLabel("Liste")
@@ -144,24 +157,109 @@ struct LibraryPane: View {
         .padding(8)
     }
 
+    private static let columns = [GridItem(.adaptive(minimum: 120, maximum: 220), spacing: 8)]
+
     private func grid(_ clips: [Clip]) -> some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120, maximum: 220), spacing: 8)], spacing: 10) {
-                ForEach(clips) { clip in
-                    ClipTile(clip: clip, project: project, media: media, selected: selection == clip.id)
-                        .onTapGesture(count: 2) { open(clip.id) }
-                        .onTapGesture { selection = clip.id }
-                        .accessibilityAddTraits(selection == clip.id ? [.isSelected, .isButton] : .isButton)
+            if byChapter, !project.story.chapters.isEmpty {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(groups(clips), id: \.id) { group in
+                        HStack(spacing: 6) {
+                            Circle().fill(group.color).frame(width: 9, height: 9)
+                            Text("\(group.name) · \(group.clips.count)").font(.callout.weight(.semibold))
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("library.group.\(group.id)")
+                        LazyVGrid(columns: Self.columns, spacing: 10) { ForEach(group.clips) { tile($0) } }
+                    }
                 }
+                .padding(8)
+            } else {
+                LazyVGrid(columns: Self.columns, spacing: 10) { ForEach(clips) { tile($0) } }
+                    .padding(8)
             }
-            .padding(8)
         }
         .accessibilityIdentifier("library.grid")
+        .alert("Neues Kapitel", isPresented: $showsNewChapter) {
+            TextField("Name", text: $newChapterName)
+            Button("Anlegen") {
+                let name = newChapterName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !name.isEmpty { createChapter(name, pendingClipIDs) }
+                newChapterName = ""
+            }
+            Button("Abbrechen", role: .cancel) { newChapterName = "" }
+        } message: {
+            Text("Die ausgewählten Clips kommen in das neue Kapitel.")
+        }
+    }
+
+    private struct Group {
+        var id: String
+        var name: String
+        var color: Color
+        var clips: [Clip]
+    }
+
+    /// Clips nach Kapitel in Erzählreihenfolge, zuletzt „Ohne Kapitel“.
+    private func groups(_ clips: [Clip]) -> [Group] {
+        var result = project.story.chapters.map { chapter in
+            Group(
+                id: chapter.id, name: chapter.name, color: Color(nsColor: ChapterPalette.color(chapter.color)),
+                clips: clips.filter { $0.chapterID == chapter.id })
+        }
+        let known = Set(project.story.chapters.map(\.id))
+        let rest = clips.filter { !($0.chapterID.map(known.contains) ?? false) }
+        if !rest.isEmpty { result.append(Group(id: "ohne", name: "Ohne Kapitel", color: .secondary, clips: rest)) }
+        return result.filter { !$0.clips.isEmpty }
+    }
+
+    private func tile(_ clip: Clip) -> some View {
+        ClipTile(clip: clip, project: project, media: media, selected: selection.contains(clip.id))
+            .onTapGesture(count: 2) { open(clip.id) }
+            .onTapGesture { select(clip.id) }
+            .contextMenu { menu(targets(clip.id)) }
+            .accessibilityAddTraits(selection.contains(clip.id) ? [.isSelected, .isButton] : .isButton)
+    }
+
+    /// Klick wählt aus, ⌘- oder ⇧-Klick erweitert die Auswahl.
+    private func select(_ id: String) {
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.command) || flags.contains(.shift) {
+            selection.formSymmetricDifference([id])
+        } else {
+            selection = [id]
+        }
+    }
+
+    /// Rechtsklick in die Auswahl wirkt auf alle ausgewählten Clips, sonst nur auf diesen.
+    private func targets(_ id: String) -> Set<String> {
+        selection.contains(id) ? selection : [id]
+    }
+
+    @ViewBuilder
+    private func menu(_ ids: Set<String>) -> some View {
+        Menu("Kapitel") {
+            ForEach(project.story.chapters) { chapter in
+                Button(chapter.name) { assign(ids, chapter.id) }
+            }
+            if !project.story.chapters.isEmpty { Divider() }
+            Button("Neues Kapitel …") {
+                pendingClipIDs = ids
+                showsNewChapter = true
+            }
+            Button("Ohne Kapitel") { assign(ids, nil) }
+        }
+        Button("Alle Takes auswählen") {
+            let motifs = project.motifs()
+            let keys = Set(ids.compactMap { motifs[$0]?.key })
+            selection = Set(project.clips.filter { motifs[$0.id].map { keys.contains($0.key) } ?? false }.map(\.id))
+        }
     }
 
     private func list(_ clips: [Clip]) -> some View {
         List(clips, selection: $selection) { clip in
             ClipRow(clip: clip, project: project, media: media).tag(clip.id)
+                .contextMenu { menu(targets(clip.id)) }
         }
         .listStyle(.sidebar)
         .accessibilityIdentifier("library.list")
@@ -271,6 +369,11 @@ private struct ClipBadges: View {
                 badge(
                     systemImage: "exclamationmark.triangle.fill", color: .orange,
                     help: clip.meta.warnings.joined(separator: "\n"))
+            }
+            if let index = project.story.chapters.firstIndex(where: { $0.id == clip.chapterID }) {
+                Circle().fill(Color(nsColor: ChapterPalette.color(project.story.chapters[index].color)))
+                    .frame(width: 8, height: 8).padding(3).background(.thinMaterial, in: Circle())
+                    .help("Kapitel: \(project.story.chapters[index].name)")
             }
             if !clip.blocked.isEmpty {
                 badge("⊘\(clip.blocked.count)", help: "\(clip.blocked.count) Sperrbereich(e): werden nie verwendet")

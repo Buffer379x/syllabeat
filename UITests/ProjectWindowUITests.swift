@@ -1,6 +1,6 @@
 import XCTest
 
-/// Abnahme M1: Ein 0.2.0-Projekt öffnet, zeigt Clips und Beats, Undo/Redo greift, Sichern schreibt v2.
+/// Abnahme M1: Ein 0.2.0-Projekt öffnet, zeigt Clips und Beats, Undo/Redo greift, Sichern schreibt das aktuelle Format (v3).
 final class ProjectWindowUITests: XCTestCase {
     private var folder: URL!
 
@@ -36,7 +36,7 @@ final class ProjectWindowUITests: XCTestCase {
     }
 
     @MainActor
-    func testLegacyProjectOpensUndoesAndSavesAsVersion2() throws {
+    func testLegacyProjectOpensUndoesAndSavesAsCurrentVersion() throws {
         let fixture = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "legacy-g1", withExtension: "json"))
         let url = folder.appendingPathComponent("Basis.syllabeat")
         try FileManager.default.copyItem(at: fixture, to: url)
@@ -66,15 +66,15 @@ final class ProjectWindowUITests: XCTestCase {
         app.typeKey("z", modifierFlags: [.command, .shift])
         XCTAssertEqual(excluded.value as? Int, 1)
 
-        // Sichern schreibt Format v2; die Kopie bleibt im alten Format.
+        // Sichern schreibt das aktuelle Format (v3); die Kopie bleibt im alten Format.
         app.typeKey("s", modifierFlags: .command)
-        let saved = expectation(description: "v2 gesichert")
+        let saved = expectation(description: "v3 gesichert")
         let deadline = Date().addingTimeInterval(10)
         var project: [String: Any] = [:]
         while Date() < deadline {
             if let data = try? Data(contentsOf: url),
                 let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                object["version"] as? Int == 2
+                object["version"] as? Int == 3
             {
                 project = object
                 saved.fulfill()

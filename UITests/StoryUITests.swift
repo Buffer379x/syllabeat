@@ -156,4 +156,61 @@ final class StoryUITests: XCTestCase {
         XCTAssertTrue(app.menuItems["Rückgängig: Ausschnitt sperren"].waitForExistence(timeout: 3))
         app.typeKey(.escape, modifierFlags: [])
     }
+
+    /// Zwei Clips wählen, neues Kapitel „Wald“ anlegen, im Drehbuch für Strophe 1 als Hauptkapitel setzen.
+    @MainActor
+    func testAssignChaptersAndPlan() throws {
+        let url = try makeProject()
+        let app = launch(url)
+        _ = timeline(app)
+        let first = app.descendants(matching: .any).matching(identifier: "clip.c1").firstMatch
+        let second = app.descendants(matching: .any).matching(identifier: "clip.c2").firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        first.click()
+        XCUIElement.perform(withKeyModifiers: .command) { second.click() }
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: "inspector.multi").firstMatch.waitForExistence(
+                timeout: 5))
+        first.rightClick()
+        app.menuItems["Kapitel"].hover()
+        app.menuItems["Neues Kapitel …"].click()
+        let field =
+            app.dialogs.textFields.firstMatch.exists ? app.dialogs.textFields.firstMatch : app.textFields["Name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText("Wald")
+        app.buttons["Anlegen"].click()
+        let group = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'library.group.k-'")
+        ).firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout: 5), "keine Gruppe „Wald“ in der Bibliothek")
+
+        app.buttons["toolbar.drehbuch"].click()
+        let cell = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'drehbuch.cell.a.'")
+        ).firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 5))
+        cell.click()
+        cell.click()
+        app.buttons["drehbuch.done"].click()
+        let json = try savedJSON(app, url)
+        let story = try XCTUnwrap(json["story"] as? [String: Any])
+        let plan = try XCTUnwrap(story["plan"] as? [String: [String: String]])
+        XCTAssertEqual(plan["a"]?.values.first, "main")
+        let clips = try XCTUnwrap(json["clips"] as? [[String: Any]])
+        XCTAssertEqual(clips.filter { $0["chapterID"] != nil }.count, 2)
+    }
+
+    /// Ab 10 Clips ohne Kapitel fragt ein Banner; „Hinweis schließen“ fragt nicht mehr.
+    @MainActor
+    func testChapterBannerOffersSetup() throws {
+        let url = try makeProject(count: 10)
+        let app = launch(url)
+        _ = timeline(app)
+        let banner = app.descendants(matching: .any).matching(identifier: "chapterBanner").firstMatch
+        XCTAssertTrue(banner.waitForExistence(timeout: 10))
+        banner.buttons["Hinweis schließen"].click()
+        XCTAssertFalse(banner.waitForExistence(timeout: 2))
+        let story = try XCTUnwrap(try savedJSON(app, url)["story"] as? [String: Any])
+        XCTAssertEqual(story["asksForChapters"] as? Bool, false)
+    }
 }

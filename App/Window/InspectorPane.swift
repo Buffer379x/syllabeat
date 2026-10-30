@@ -11,6 +11,7 @@ struct InspectorPane: View {
     var cut: CutController
     var ai: AIController
     var selectedClipID: String?
+    var selectedClipIDs: Set<String> = []
     @Binding var errorMessage: String?
     @Environment(\.undoManager) private var undoManager
 
@@ -19,9 +20,17 @@ struct InspectorPane: View {
             VStack(alignment: .leading, spacing: 16) {
                 if let shot = cut.selectedShot {
                     ShotInspector(shot: shot, project: document.project, media: media, cut: cut)
+                } else if selectedClipIDs.count > 1 {
+                    MultiClipInspector(
+                        clips: document.project.clips.filter { selectedClipIDs.contains($0.id) },
+                        project: document.project,
+                        textScores: cut.textScores
+                    ) { command in
+                        errorMessage = document.run(command, undoManager: undoManager)
+                    }
                 } else if let id = selectedClipID, let clip = document.project.clip(withID: id) {
                     ClipInspector(
-                        clip: clip, project: document.project, media: media, ai: ai,
+                        clip: clip, project: document.project, media: media, ai: ai, textScores: cut.textScores,
                         view: { cut.view(clipID: clip.id) }
                     ) { command in
                         errorMessage = document.run(command, undoManager: undoManager)
@@ -45,6 +54,7 @@ private struct ClipInspector: View {
     var project: Project
     var media: MediaController
     var ai: AIController
+    var textScores: TextScores
     var view: () -> Void
     var run: (any EditCommand) -> Void
     @State private var description = ""
@@ -70,6 +80,10 @@ private struct ClipInspector: View {
             .toggleStyle(.checkbox)
             .accessibilityIdentifier("clip.excluded")
             .help("Der automatische Schnitt nutzt diesen Clip nicht.")
+        }
+        if !project.story.chapters.isEmpty {
+            ChapterPicker(
+                clipIDs: [clip.id], current: clip.chapterID, project: project, textScores: textScores, run: run)
         }
         TextField("Beschreibung", text: $description, prompt: Text("Was ist zu sehen?"), axis: .vertical)
             .lineLimit(2...6)
@@ -482,5 +496,54 @@ struct TimelineFormatEditor: View {
                 (settings.width, settings.height) = (parts[0], parts[1])
                 run(SetTimelineSettings(settings: settings))
             })
+    }
+}
+
+/// Kapitel für einen oder mehrere Clips.
+struct ChapterPicker: View {
+    var clipIDs: Set<String>
+    var current: String?
+    var project: Project
+    var textScores: TextScores
+    var run: (any EditCommand) -> Void
+
+    var body: some View {
+        Picker(
+            "Kapitel",
+            selection: Binding(
+                get: { current ?? "" },
+                set: { id in
+                    run(
+                        AssignChapter(
+                            clipIDs: clipIDs, chapterID: id.isEmpty ? nil : id, includeTakes: false,
+                            textScores: textScores))
+                })
+        ) {
+            Text("Ohne Kapitel").tag("")
+            ForEach(project.story.chapters) { chapter in Text(chapter.name).tag(chapter.id) }
+        }
+        .accessibilityIdentifier("clip.chapter")
+    }
+}
+
+/// Inspektor bei mehreren ausgewählten Clips: gemeinsame Zuordnungen für alle.
+struct MultiClipInspector: View {
+    var clips: [Clip]
+    var project: Project
+    var textScores: TextScores
+    var run: (any EditCommand) -> Void
+
+    var body: some View {
+        Text("\(clips.count) Clips").font(.headline).accessibilityIdentifier("inspector.multi")
+        let ids = Set(clips.map(\.id))
+        let chapters = Set(clips.map(\.chapterID))
+        if !project.story.chapters.isEmpty {
+            ChapterPicker(
+                clipIDs: ids, current: chapters.count == 1 ? chapters.first ?? nil : nil, project: project,
+                textScores: textScores, run: run)
+        } else {
+            Text("Kapitel legst du per Rechtsklick in der Bibliothek an („Kapitel ▸ Neues Kapitel …“).")
+                .font(.callout).foregroundStyle(.secondary)
+        }
     }
 }

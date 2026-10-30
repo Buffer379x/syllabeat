@@ -156,6 +156,9 @@ struct TimelinePane: View {
         return result <= minimum * 1.001 ? nil : result
     }
 
+    /// Ungereimtheiten als Marker (ab N5); vorerst leer.
+    var markers: [TimelineMarker] = []
+
     private func content(_ analysis: SongAnalysis) -> TimelineContent {
         let shots = (project.cut?.shots ?? []).map { shot in
             TimelineShot(
@@ -167,6 +170,15 @@ struct TimelinePane: View {
             duration: analysis.duration, beats: analysis.beats, meter: analysis.meter, sections: analysis.sections,
             words: analysis.words, lines: analysis.lines, shots: shots, waveform: song.waveform)
         content.fps = project.timeline.fps.doubleValue
+        content.chapterBars = (project.cut?.shots ?? []).compactMap { shot in
+            guard let id = project.clip(withID: shot.clipID)?.chapterID,
+                let index = project.story.chapters.firstIndex(where: { $0.id == id })
+            else { return nil }
+            return TimelineChapterBar(
+                start: shot.start.time, end: shot.end.time, color: project.story.chapters[index].color,
+                name: project.story.chapters[index].name)
+        }
+        content.markers = markers
         return content
     }
 }

@@ -40,6 +40,10 @@ public struct TimelineContent: Equatable {
     public var waveform: Waveform?
     /// Timeline-Bildrate (für ⌥←/→ und das Einrasten auf Frames mit ⌘).
     public var fps: Double = 25
+    /// Kapitel je Einstellung (Spur „Kapitel“).
+    public var chapterBars: [TimelineChapterBar] = []
+    /// Ungereimtheiten (Marker in der Bildspur).
+    public var markers: [TimelineMarker] = []
 
     public init(
         duration: Double, beats: [Beat], meter: Int, sections: [SongSection], words: [Word], lines: [LyricLine] = [],
@@ -83,13 +87,14 @@ public struct TimelineActions {
 /// Zeichenfläche der Timeline: vier Spuren, nur der sichtbare Bereich wird gezeichnet.
 public final class TimelineCanvas: NSView {
     public enum Track: Int, CaseIterable, Sendable {
-        case sections, text, song, image
+        case sections, text, song, chapters, image
 
         public var height: CGFloat {
             switch self {
             case .sections: 28
             case .text: 34
             case .song: 72
+            case .chapters: 14
             case .image: 48
             }
         }
@@ -99,6 +104,7 @@ public final class TimelineCanvas: NSView {
             case .sections: "Abschnitte"
             case .text: "Text"
             case .song: "Song"
+            case .chapters: "Kapitel"
             case .image: "Bild"
             }
         }
@@ -200,7 +206,10 @@ public final class TimelineCanvas: NSView {
             case .sections: drawSections(area, visible)
             case .text: drawWords(area, visible)
             case .song: drawSong(area, visible)
-            case .image: drawShots(area, visible)
+            case .chapters: drawChapters(area, visible)
+            case .image:
+                drawShots(area, visible)
+                drawMarkers(area, visible)
             }
             NSColor.separatorColor.setFill()
             NSRect(x: dirtyRect.minX, y: area.maxY - 1, width: dirtyRect.width, height: 1).fill()
@@ -411,7 +420,7 @@ public final class TimelineCanvas: NSView {
         return firstIndex(atLeast: visible.lowerBound)..<firstIndex(atLeast: visible.upperBound)
     }
 
-    private func drawText(_ text: String, in box: NSRect, font: NSFont, color: NSColor) {
+    func drawText(_ text: String, in box: NSRect, font: NSFont, color: NSColor) {
         guard box.width > 8 else { return }
         let style = NSMutableParagraphStyle()
         style.lineBreakMode = .byTruncatingTail
