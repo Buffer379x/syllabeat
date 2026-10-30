@@ -61,6 +61,43 @@ public enum StoryScores {
         }
     }
 
+    /// Beleg für den Drehbuch-Vorschlag: je Abschnitt und Kapitel der mittlere z-Wert über die Zeilen des Abschnitts
+    /// (bester Szenenwert je Kapitel, z-normiert über die Kapitel). Abschnitte ohne Zeilen bleiben leer.
+    public static func chapterEvidence(_ project: Project, rows: [String: [String: Float]]) -> [String: [Double]] {
+        guard let analysis = project.analysis, !project.story.chapters.isEmpty else { return [:] }
+        let chapters = project.story.chapters
+        var sceneChapter: [String: Int] = [:]
+        for clip in project.clips {
+            guard let index = chapters.firstIndex(where: { $0.id == clip.chapterID }) else { continue }
+            for scene in clip.scenes { sceneChapter[scene.id] = index }
+        }
+        var result: [String: [Double]] = [:]
+        for section in analysis.sections {
+            let lines = analysis.lines.filter { $0.start >= section.start - 0.5 && $0.start < section.end - 0.5 }
+            var sums = Array(repeating: 0.0, count: chapters.count)
+            var used = 0
+            for line in lines {
+                guard let row = rows[line.id] else { continue }
+                var best = Array(repeating: -Double.infinity, count: chapters.count)
+                for (scene, value) in row {
+                    if let chapter = sceneChapter[scene] { best[chapter] = max(best[chapter], Double(value)) }
+                }
+                let present = best.filter(\.isFinite)
+                guard present.count >= 2, let lowest = present.min() else { continue }
+                // Kapitel ohne Szene zählen wie das schwächste.
+                best = best.map { $0.isFinite ? $0 : lowest }
+                let mean = best.reduce(0, +) / Double(best.count)
+                let deviation = (best.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(best.count))
+                    .squareRoot()
+                guard deviation > 0 else { continue }
+                for index in sums.indices { sums[index] += (best[index] - mean) / deviation }
+                used += 1
+            }
+            if used > 0 { result[section.id] = sums.map { $0 / Double(used) } }
+        }
+        return result
+    }
+
     public static func words(_ text: String) -> Set<String> {
         Set(
             text.lowercased().components(separatedBy: CharacterSet.letters.inverted).filter { $0.count >= 3 }

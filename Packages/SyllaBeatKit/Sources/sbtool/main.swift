@@ -35,6 +35,7 @@ let usage = """
       bench-preview <Ordner>     Vorschau-Neuaufbau mit 500 Dateien messen (Ordner: tests/Fixtures/media)
       wordtruth <Ordner>         Transkription, Wortzeit-Korrektur und Ausrichtung gegen *.truth.json bewerten
       geschichte <Projekt> <Wahrheit> [--seeds N]   Kapitel-, Zeilentreue und Tageszeit-Wechsel messen
+      drehbuch <Projekt> <Wahrheit>   Drehbuch-Vorschlag ohne KI gegen die Wahrheit prüfen
     """
 
 struct ToolError: Error, CustomStringConvertible {
@@ -142,6 +143,7 @@ do {
         try await compareStoryboard(arguments[1], brief: arguments[2], output: arguments[3])
     case ("bench-preview", 2): try await benchPreview(fixtures: URL(fileURLWithPath: arguments[1]))
     case ("geschichte", 3...): try await storyCommand(Array(arguments.dropFirst()))
+    case ("drehbuch", 3): try await drehbuchCommand(Array(arguments.dropFirst()))
     case ("search", 3...): try await search(arguments[1], query: arguments.dropFirst(2).joined(separator: " "))
     default:
         FileHandle.standardError.write(Data((usage + "\n").utf8))

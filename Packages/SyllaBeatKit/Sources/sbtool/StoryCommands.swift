@@ -27,6 +27,55 @@ func appTextScores(_ project: Project) async throws -> TextScores {
     return TextScores(values, sections: sections)
 }
 
+/// Kapitel aus der Wahrheit setzen: Kapitel in `reihenfolge`, jeder Clip ins erste Kapitel, dessen Namensteile passen.
+func applyTruthChapters(_ project: inout Project, _ truth: StoryTruth) {
+    let order = truth.reihenfolge ?? truth.kapitel.keys.sorted()
+    project.story.chapters = order.enumerated().map { Chapter(id: $1, name: $1, color: $0) }
+    for index in project.clips.indices {
+        let name = project.clips[index].name.lowercased()
+        project.clips[index].chapterID = order.first { chapter in
+            (truth.kapitel[chapter] ?? []).contains { name.contains($0.lowercased()) }
+        }
+    }
+}
+
+/// Drehbuch aus der Wahrheit (alle erwarteten Kapitel als Hauptkapitel).
+func truthPlan(_ project: Project, _ truth: StoryTruth) -> [String: [String: ChapterRole]] {
+    var plan: [String: [String: ChapterRole]] = [:]
+    for section in project.analysis?.sections ?? [] {
+        if let chapters = truth.abschnitte[section.label] {
+            plan[section.id] = Dictionary(chapters.map { ($0, ChapterRole.main) }, uniquingKeysWith: { a, _ in a })
+        }
+    }
+    return plan
+}
+
+/// `drehbuch <Projekt> <Wahrheit>`: Vorschlag ohne KI (Kapitel aus der Wahrheit) gegen die erwarteten Kapitel.
+func drehbuchCommand(_ arguments: [String]) async throws {
+    guard arguments.count >= 2 else { throw ToolError(description: "Aufruf: drehbuch <Projekt> <Wahrheit>") }
+    var project = try load(arguments[0]).project
+    let truth = try JSONDecoder().decode(StoryTruth.self, from: Data(contentsOf: URL(fileURLWithPath: arguments[1])))
+    applyTruthChapters(&project, truth)
+    let rows = try await appTextScores(project).values
+    let sections = project.analysis?.sections ?? []
+    let montage =
+        project.story.montage ?? Set(sections.compactMap(\.repeatOf) + sections.filter { $0.repeatOf != nil }.map(\.id))
+    let plan = DrehbuchProposer.plan(
+        sections: sections, chapters: project.story.chapters,
+        evidence: StoryScores.chapterEvidence(project, rows: rows), montage: montage)
+    var right = 0
+    for section in sections.sorted(by: { $0.start < $1.start }) {
+        let proposed = plan[section.id]?.first { $0.value == .main }?.key ?? "–"
+        let expected = truth.abschnitte[section.label] ?? []
+        let ok = expected.contains(proposed)
+        if ok { right += 1 }
+        print(
+            "\(ok ? " " : "✗") \(section.label): \(proposed)\(montage.contains(section.id) ? " (Montage)" : "")   erwartet: \(expected.joined(separator: "/"))"
+        )
+    }
+    print("Drehbuch-Vorschlag: \(right)/\(sections.count) Abschnitte richtig")
+}
+
 /// `geschichte <Projekt> <Wahrheit> [--seeds N]`: Kapitel-, Zeilentreue, Tageszeit-Wechsel und Sandwiches je Variante.
 func storyCommand(_ arguments: [String]) async throws {
     guard arguments.count >= 2 else { throw ToolError(description: "Aufruf: geschichte <Projekt> <Wahrheit>") }
@@ -37,9 +86,14 @@ func storyCommand(_ arguments: [String]) async throws {
         seeds = Int(arguments[flag + 1]) ?? 5
     }
     let text = try await appTextScores(project)
-    let variants: [(String, TextScores)] = [("ohne Text", TextScores()), ("mit Text", text)]
+    var story = project
+    applyTruthChapters(&story, truth)
+    story.story.plan = truthPlan(story, truth)
+    let variants: [(String, Project, TextScores)] = [
+        ("ohne Text", project, TextScores()), ("mit Text", project, text), ("mit Geschichte", story, text),
+    ]
     print("Variante | Kapitel-Treffer | Zeilen-Treffer | Tag↔Abend | Sandwiches | Einstellungen")
-    for (name, scores) in variants {
+    for (name, project, scores) in variants {
         var sum = StoryMeasurement(chapterHits: 0, lineHits: 0, timeSwitches: 0, sandwiches: 0, shots: 0)
         var started = DispatchTime.now().uptimeNanoseconds
         var milliseconds = 0.0
