@@ -40,11 +40,15 @@ public enum StoryScores {
         return result
     }
 
-    /// Wörter einer Szene: Szenenbeschreibung, Clipbeschreibung und Schlagwörter (klein, ab drei Buchstaben).
+    /// Wörter einer Szene: Szenenbeschreibung, Clipbeschreibung, Schlagwörter und Dateiname (klein, ab drei
+    /// Buchstaben).
     public static func descriptions(of project: Project) -> [String: Set<String>] {
         var result: [String: Set<String>] = [:]
+        let motifs = project.motifs()
         for clip in project.clips {
-            let shared = words(([clip.description] + clip.tags + [clip.mood ?? ""]).joined(separator: " "))
+            // Wörter aus dem Dateinamen (Motiv, Figurennamen wie „emi“, „lio“) zählen mit.
+            let named = motifs[clip.id]?.words ?? []
+            let shared = words(([clip.description] + clip.tags + [clip.mood ?? ""] + named).joined(separator: " "))
             for scene in clip.scenes { result[scene.id] = shared.union(words(scene.description)) }
         }
         return result
@@ -94,6 +98,33 @@ public enum StoryScores {
                 used += 1
             }
             if used > 0 { result[section.id] = sums.map { $0 / Double(used) } }
+        }
+        return result
+    }
+
+    static let pronouns: Set<String> = ["sie", "er", "es", "ihr", "they", "he", "she", "it"]
+
+    /// Ähnlichkeiten jeder Textzeile zu allen Szenen (für App und `sbtool` gleich): SigLIP über `similarities`, dazu der
+    /// Wort-Zuschlag aus Beschreibungen und Dateinamen. Beginnt eine Zeile mit einem Pronomen und hat keinen klaren
+    /// Treffer, erbt sie zur Hälfte die Zeile davor („Sie traben …“ nach „Die Pferde …“).
+    public static func lineRows(
+        _ analysis: SongAnalysis, descriptions: [String: Set<String>],
+        isolation: isolated (any Actor)? = #isolation, similarities: (String) async throws -> [String: Float]
+    ) async throws -> [String: [String: Float]] {
+        var result: [String: [String: Float]] = [:]
+        var previous: [String: Float]?
+        for line in analysis.lines.sorted(by: { $0.start < $1.start }) {
+            let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+            var row = try await similarities(text)
+            guard !row.isEmpty else { continue }
+            addBonus(to: &row, words: words(text), descriptions: descriptions)
+            let first = text.lowercased().split(whereSeparator: { !$0.isLetter }).first.map(String.init) ?? ""
+            if pronouns.contains(first), CutEngine.gateConfidence(row) < 0.6, let previous {
+                for (scene, value) in row { row[scene] = 0.5 * value + 0.5 * (previous[scene] ?? value) }
+            }
+            result[line.id] = row
+            previous = row
         }
         return result
     }

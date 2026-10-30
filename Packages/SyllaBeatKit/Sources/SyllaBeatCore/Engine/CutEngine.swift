@@ -194,7 +194,7 @@ public enum CutEngine {
         for slot in slots {
             if case .copy(let from) = slot.role { need[from] = max(need[from], slot.duration + 0.05) }
         }
-        let text = normalize(textScores.values, keys: Set(slots.compactMap(\.lineID)), units: units)
+        let text = gated(textScores.values, keys: Set(slots.compactMap(\.lineID)), units: units)
         let story = normalize(textScores.sections, keys: Set(slots.compactMap(\.sectionID)), units: units)
         let rules = StoryContext.make(project, slots: slots)
         let traits = project.story.traits.filter { $0.rule != .off }
@@ -527,6 +527,36 @@ public enum CutEngine {
             }
         }
         return pieces.filter { $0.upperBound - $0.lowerBound >= minimum }
+    }
+
+    /// Nur klare Text-Treffer: Szenen über dem 90. Perzentil, skaliert mit der Sicherheit der Zeile. Abstrakte Zeilen
+    /// (kein Ausreißer) wirken so kaum; im Spike stieg die Zeilentreue gegenüber dem Strecken auf 0…1.
+    public static func gate(_ row: [String: Float]) -> [String: Double] {
+        guard let (p90, span, confidence) = gateParameters(row) else { return [:] }
+        return row.mapValues { Double(min(1, max(0, ($0 - p90) / span))) * confidence }
+    }
+
+    /// Sicherheit einer Zeile: wie weit der beste Treffer über dem 90. Perzentil liegt (ab 0,03 voll).
+    public static func gateConfidence(_ row: [String: Float]) -> Double {
+        gateParameters(row)?.confidence ?? 0
+    }
+
+    static func gateParameters(_ row: [String: Float]) -> (p90: Float, span: Float, confidence: Double)? {
+        let sorted = row.values.sorted()
+        guard let top = sorted.last else { return nil }
+        let p90 = sorted[Int(Double(sorted.count - 1) * 0.9)]
+        return (p90, max(0.03, top - p90), Double(min(1, max(0, (top - p90) / 0.03))))
+    }
+
+    /// Text-Ähnlichkeiten je Zeile nach `gate`, als Liste je Einheit.
+    static func gated(_ scores: [String: [String: Float]], keys: Set<String>, units: [Unit]) -> [String: [Double]] {
+        var result: [String: [Double]] = [:]
+        for key in keys {
+            guard let row = scores[key], !row.isEmpty else { continue }
+            let values = gate(row)
+            result[key] = units.map { values[$0.sceneID] ?? 0 }
+        }
+        return result
     }
 
     /// Ähnlichkeiten je Zeile bzw. Abschnitt auf 0…1 normieren (SigLIP-Werte liegen dicht beieinander), als Liste

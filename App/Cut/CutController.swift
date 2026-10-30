@@ -139,14 +139,11 @@ final class CutController {
             !index.isEmpty
         else { return TextScores() }
         let descriptions = StoryScores.descriptions(of: project)
-        var values: [String: [String: Float]] = [:]
-        for line in analysis.lines {
-            let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty, let vector = await embed(text) else { continue }
-            var row = index.similarities(query: vector)
-            StoryScores.addBonus(to: &row, words: StoryScores.words(text), descriptions: descriptions)
-            values[line.id] = row
-        }
+        let values =
+            (try? await StoryScores.lineRows(analysis, descriptions: descriptions) { text in
+                guard let vector = await self.embed(text) else { return [:] }
+                return index.similarities(query: vector)
+            }) ?? [:]
         var sections: [String: [String: Float]] = [:]
         if let storyboard {
             sections =

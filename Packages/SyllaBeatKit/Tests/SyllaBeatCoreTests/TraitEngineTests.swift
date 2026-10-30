@@ -144,3 +144,17 @@ import Testing
         }
     }
 }
+
+@Suite struct TextGateTests {
+    @Test func gateKeepsOnlyClearHits() {
+        var row = Dictionary(uniqueKeysWithValues: (0..<99).map { ("s\($0)", Float(0.05)) })
+        row["hit"] = 0.12
+        let gated = CutEngine.gate(row)
+        #expect(gated.filter { $0.value > 0 }.keys.sorted() == ["hit"])
+        #expect(abs((gated["hit"] ?? 0) - 1) < 1e-6)
+        #expect(abs(CutEngine.gateConfidence(row) - 1) < 1e-6)
+        row["hit"] = 0.055
+        #expect(CutEngine.gate(row).values.allSatisfy { $0 <= 0.05 })
+        #expect(CutEngine.gateConfidence(row) < 0.2)
+    }
+}

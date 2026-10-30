@@ -3,20 +3,16 @@ import SyllaBeatAI
 import SyllaBeatCore
 import SyllaBeatModels
 
-/// Text-Ähnlichkeiten wie in der App (SigLIP 2 je Zeile und Storyboard-Abschnitt, Zuschlag aus Beschreibungen).
+/// Text-Ähnlichkeiten wie in der App (`StoryScores.lineRows` je Zeile, Storyboard-Abschnitte, Zuschlag aus
+/// Beschreibungen und Dateinamen).
 func appTextScores(_ project: Project) async throws -> TextScores {
     guard let analysis = project.analysis else { return TextScores() }
     let embedder = try await SiglipEmbedder()
     let index = SceneIndex(project: project, model: embedder.package.id)
     guard !index.isEmpty else { return TextScores() }
     let descriptions = StoryScores.descriptions(of: project)
-    var values: [String: [String: Float]] = [:]
-    for line in analysis.lines {
-        let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { continue }
-        var row = index.similarities(query: try embedder.embed(text: text))
-        StoryScores.addBonus(to: &row, words: StoryScores.words(text), descriptions: descriptions)
-        values[line.id] = row
+    let values = try await StoryScores.lineRows(analysis, descriptions: descriptions) { text in
+        index.similarities(query: try embedder.embed(text: text))
     }
     var sections: [String: [String: Float]] = [:]
     if let storyboard = project.storyboard {
