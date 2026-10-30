@@ -3,7 +3,9 @@ import Foundation
 /// Zufällige, aber gültige Projekte für Property-Tests und Messungen der Engine (`sbtool bench-cut`).
 public enum SyntheticProject {
     public static func make(
-        seed: UInt64, clips clipRange: ClosedRange<Int> = 3...30, duration durationRange: ClosedRange<Double> = 25...240
+        seed: UInt64, clips clipRange: ClosedRange<Int> = 3...30,
+        duration durationRange: ClosedRange<Double> = 25...240,
+        story: Bool = false
     ) -> Project {
         var random = SeededRandom(seed: seed)
         func int(_ range: ClosedRange<Int>) -> Int { range.lowerBound + Int(random.next() % UInt64(range.count)) }
@@ -98,6 +100,21 @@ public enum SyntheticProject {
             name: "Zufall \(seed)", timeline: TimelineSettings(fps: fps), clips: clips, analysis: analysis, style: style
         )
         project.storyboard = storyboard
+        if story { addStory(to: &project, seed: seed) }
         return project
+    }
+
+    /// Geschichte aus einem eigenen Zufallsstrom, damit Projekte ohne Geschichte bitgleich zu 0.3.0 bleiben.
+    static func addStory(to project: inout Project, seed: UInt64) {
+        var random = SeededRandom([seed, 0x5701])
+        // Sperrbereiche: 20 % der Clips mit 1–3 Bereichen.
+        for index in project.clips.indices where random.unit() < 0.2 {
+            let length = project.clips[index].meta.duration
+            let count = 1 + Int(random.next() % 3)
+            project.clips[index].blocked = (0..<count).map { _ in
+                let start = random.unit() * length
+                return SourceRange(start: start, end: min(length, start + 0.2 + random.unit() * 2))
+            }
+        }
     }
 }

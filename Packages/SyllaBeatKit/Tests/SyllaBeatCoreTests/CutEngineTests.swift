@@ -40,8 +40,29 @@ import Testing
         return TextScores(lines, sections: sections)
     }
 
-    static func check(seed: UInt64) -> [String] {
-        let project = SyntheticProject.make(seed: seed)
+    /// Dasselbe mit Geschichte: Sperrbereiche, Kapitel, Drehbücher, Tageszeiten (`SyntheticProject.make(story:)`).
+    @Test func invariantsHoldWithStory() async {
+        let total = ProcessInfo.processInfo.environment["SYLLABEAT_SEEDS"].flatMap(Int.init) ?? 1000
+        let failures = await withTaskGroup(of: [String].self) { group in
+            for chunk in 0..<8 {
+                group.addTask {
+                    var failures: [String] = []
+                    for seed in stride(from: UInt64(chunk), to: UInt64(total), by: 8) {
+                        failures += Self.check(seed: seed, story: true)
+                        if failures.count > 5 { break }
+                    }
+                    return failures
+                }
+            }
+            var all: [String] = []
+            for await part in group { all += part }
+            return all
+        }
+        #expect(failures.isEmpty, "\(failures.prefix(5))")
+    }
+
+    static func check(seed: UInt64, story: Bool = false) -> [String] {
+        let project = SyntheticProject.make(seed: seed, story: story)
         let scores = Self.scores(project, seed: seed)
         guard let cut = CutEngine.generate(project, style: project.style, textScores: scores) else {
             return ["Seed \(seed): kein Schnitt"]

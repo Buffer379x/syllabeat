@@ -355,21 +355,52 @@ public enum CutEngine {
                     next += 1
                 }
                 let features = scene.features
-                var unit = Unit(
-                    clipIndex: clipIndex, clipID: clip.id, sceneID: scene.id, start: scene.start,
-                    end: min(end, available), fps: clip.meta.fps, available: available,
-                    motion: percentile(features?.motion ?? 0, allMotion),
-                    aesthetics: features?.aesthetics ?? 0,
-                    sharpness: percentile(features?.sharpness ?? 0, allSharpness),
-                    utility: features?.isUtility ?? false, shotSize: features?.shotSize ?? .wide,
-                    rating: clip.rating ?? 0)
-                unit.fixed.aesthetics = 0.4 * (unit.aesthetics + 1) / 2 - (unit.utility ? 1.5 : 0)
-                unit.fixed.sharpness = unit.sharpness < 0.15 ? -0.4 : 0
-                unit.fixed.rating = unit.rating > 0 ? 0.15 * Double(unit.rating - 3) : 0
-                units.append(unit)
+                // Sperrbereiche zerlegen die Einheit; Stücke, die erst in einer späteren Szene beginnen, gehören zu
+                // deren eigener Einheit.
+                let pieces =
+                    clip.blocked.isEmpty
+                    ? [scene.start...min(end, available)]
+                    : usableIntervals(
+                        start: scene.start, end: min(end, available), blocked: clip.blocked,
+                        margin: 1 / clip.meta.fps.doubleValue, minimum: 0.2
+                    )
+                    .filter { $0.lowerBound < scene.end }
+                for piece in pieces where piece.upperBound > piece.lowerBound {
+                    var unit = Unit(
+                        clipIndex: clipIndex, clipID: clip.id, sceneID: scene.id, start: piece.lowerBound,
+                        end: piece.upperBound, fps: clip.meta.fps, available: available,
+                        motion: percentile(features?.motion ?? 0, allMotion),
+                        aesthetics: features?.aesthetics ?? 0,
+                        sharpness: percentile(features?.sharpness ?? 0, allSharpness),
+                        utility: features?.isUtility ?? false, shotSize: features?.shotSize ?? .wide,
+                        rating: clip.rating ?? 0)
+                    unit.fixed.aesthetics = 0.4 * (unit.aesthetics + 1) / 2 - (unit.utility ? 1.5 : 0)
+                    unit.fixed.sharpness = unit.sharpness < 0.15 ? -0.4 : 0
+                    unit.fixed.rating = unit.rating > 0 ? 0.15 * Double(unit.rating - 3) : 0
+                    units.append(unit)
+                }
             }
         }
         return units
+    }
+
+    /// Teile von `[start, end]` ohne Sperrbereiche (mit `margin` Abstand), jeweils mindestens `minimum` lang.
+    static func usableIntervals(
+        start: Double, end: Double, blocked: [SourceRange], margin: Double, minimum: Double
+    ) -> [ClosedRange<Double>] {
+        var pieces: [ClosedRange<Double>] = start < end ? [start...end] : []
+        for range in blocked.sorted(by: { $0.start < $1.start }) {
+            let from = range.start - margin
+            let to = range.end + margin
+            pieces = pieces.flatMap { piece -> [ClosedRange<Double>] in
+                guard from < piece.upperBound, to > piece.lowerBound else { return [piece] }
+                var rest: [ClosedRange<Double>] = []
+                if from > piece.lowerBound { rest.append(piece.lowerBound...from) }
+                if to < piece.upperBound { rest.append(to...piece.upperBound) }
+                return rest
+            }
+        }
+        return pieces.filter { $0.upperBound - $0.lowerBound >= minimum }
     }
 
     /// Ähnlichkeiten je Zeile bzw. Abschnitt auf 0…1 normieren (SigLIP-Werte liegen dicht beieinander), als Liste

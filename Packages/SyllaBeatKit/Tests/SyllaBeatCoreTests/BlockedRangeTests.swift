@@ -33,4 +33,20 @@ import Testing
         _ = try CutCompiler.compile(project, cut: cut)
         #expect(!CutValidator.validate(project, cut: cut).contains { $0.hasPrefix("I8") })
     }
+
+    @Test func blockedRangesSplitUnits() {
+        let intervals = CutEngine.usableIntervals(
+            start: 0, end: 15, blocked: [SourceRange(start: 4, end: 5), SourceRange(start: 14, end: 15)],
+            margin: 0.04, minimum: 0.6)
+        #expect(intervals.count == 2)
+        #expect(abs(intervals[0].lowerBound - 0) < 1e-9 && abs(intervals[0].upperBound - 3.96) < 1e-9)
+        #expect(abs(intervals[1].lowerBound - 5.04) < 1e-9 && abs(intervals[1].upperBound - 13.96) < 1e-9)
+    }
+
+    @Test func storyProjectsCarryBlockedRanges() {
+        let blocked = (0..<50).flatMap { SyntheticProject.make(seed: UInt64($0), story: true).clips }
+            .filter { !$0.blocked.isEmpty }
+        #expect(!blocked.isEmpty)
+        #expect(SyntheticProject.make(seed: 3) == SyntheticProject.make(seed: 3, story: false))
+    }
 }
