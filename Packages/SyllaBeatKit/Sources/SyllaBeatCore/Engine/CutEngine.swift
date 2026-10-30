@@ -199,6 +199,14 @@ public enum CutEngine {
         let text = gated(textScores.values, keys: Set(slots.compactMap(\.lineID)), units: units)
         let story = normalize(textScores.sections, keys: Set(slots.compactMap(\.sectionID)), units: units)
         let rules = StoryContext.make(project, slots: slots)
+        // Erste Einheit je Clip, gruppiert nach Motiv (für „Gleiche Motive, andere Takes“).
+        var takeUnits: [Int: [Int]] = [:]
+        if style.refrainMode == .sameMotifs {
+            var seen: Set<String> = []
+            for (index, unit) in units.enumerated() where unit.motif >= 0 && seen.insert(unit.clipID).inserted {
+                takeUnits[unit.motif, default: []].append(index)
+            }
+        }
         let traits = project.story.traits.filter { $0.rule != .off }
         // Vorausschau für fortlaufende Merkmale: höchste Stufe, die alle späteren freien Slots mit ihrem erlaubten
         // Material noch zeigen können (unbekannte Stufen passen zu allem). Höher darf ein Slot nicht vorrücken, sonst
@@ -259,7 +267,25 @@ public enum CutEngine {
             case .copy(let from):
                 for (b, beam) in beams.enumerated() {
                     var copied = pick(at: from, from: beam.node, slot: slotIndex)
-                    if style.refrainMode == .sameClips, copied.unit >= 0 {
+                    // Andere Takes: dieselbe Motivfolge, je Wiederholung der nächste Take des Motivs.
+                    var tookOtherTake = false
+                    if style.refrainMode == .sameMotifs, copied.unit >= 0, units[copied.unit].motif >= 0 {
+                        let template = units[copied.unit]
+                        let takes = (takeUnits[template.motif] ?? []).filter {
+                            units[$0].clipID != template.clipID && units[$0].length >= slot.duration + margin
+                        }
+                        if !takes.isEmpty {
+                            let repetition = slots[..<slotIndex].filter {
+                                if case .copy(let source) = $0.role { source == from } else { false }
+                            }.count
+                            copied.unit = takes[repetition % takes.count]
+                            copied.sourceIn = units[copied.unit].start
+                            tookOtherTake = true
+                        }
+                    }
+                    if style.refrainMode == .sameClips || (style.refrainMode == .sameMotifs && !tookOtherTake),
+                        copied.unit >= 0
+                    {
                         let unit = units[copied.unit]
                         let cursor = beam.cursor[copied.unit] ?? unit.start
                         copied.sourceIn = cursor + slot.duration + margin <= unit.end ? cursor : unit.start

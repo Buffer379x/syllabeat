@@ -72,12 +72,15 @@ public struct CutStyle: Codable, Sendable, Equatable {
         case sameClips
         /// Unabhängig neu geschnitten.
         case free
+        /// Gleiche Motivfolge, aber der jeweils nächste Take (KI-Clips mit mehreren Generierungen).
+        case sameMotifs
 
         public var title: String {
             switch self {
             case .identical: "Identisch"
             case .sameClips: "Gleiche Clips, andere Ausschnitte"
             case .free: "Frei"
+            case .sameMotifs: "Gleiche Motive, andere Takes"
             }
         }
     }

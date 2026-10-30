@@ -107,4 +107,59 @@ import Testing
         }
         #expect(sandwiches <= 2, "\(sandwiches) Sandwiches in 10 Schnitten")
     }
+
+    static func refrainProject(_ names: [String]) -> Project {
+        var project = Self.project(names)
+        project.analysis!.sections = [
+            SongSection(id: "V", kind: .verse, label: "Strophe", start: 0, end: 8),
+            SongSection(id: "A", kind: .chorus, label: "Refrain", start: 8, end: 24),
+            SongSection(id: "B", kind: .chorus, label: "Refrain", start: 24, end: 40, repeatOf: "A"),
+        ]
+        project.style.refrainMode = .sameMotifs
+        return project
+    }
+
+    @Test func sameMotifsUsesOtherTakes() throws {
+        let names = [
+            "farm_pigs_wan.mp4", "farm_pigs_wan (2).mp4", "farm_pigs_wan (3).mp4", "farm_goats_wan.mp4",
+            "farm_cows_wan.mp4", "farm_sheep_wan.mp4",
+        ]
+        var project = Self.refrainProject(names)
+        let motifs = project.motifs()
+        var checked = 0
+        for seed in UInt64(1)...10 {
+            project.style.seed = seed
+            let cut = try #require(CutEngine.generate(project, style: project.style))
+            for copy in cut.shots {
+                guard let source = copy.reasons?.copiedFrom, let template = cut.shots.first(where: { $0.id == source }),
+                    motifs[template.clipID]?.key.contains("pigs") == true
+                else { continue }
+                #expect(copy.clipID != template.clipID, "Seed \(seed)")
+                #expect(motifs[copy.clipID]?.key == motifs[template.clipID]?.key)
+                checked += 1
+            }
+        }
+        #expect(checked > 0)
+    }
+
+    @Test func sameMotifsFallsBackToOtherRange() throws {
+        var project = Self.refrainProject(["farm_goats_wan.mp4", "farm_cows_wan.mp4", "farm_sheep_wan.mp4"])
+        project.style.seed = 3
+        let cut = try #require(CutEngine.generate(project, style: project.style))
+        let copies = cut.shots.filter { $0.reasons?.copiedFrom != nil }
+        #expect(!copies.isEmpty)
+        for copy in copies {
+            let template = cut.shots.first { $0.id == copy.reasons?.copiedFrom }!
+            #expect(copy.clipID == template.clipID)
+        }
+        #expect(CutValidator.validate(project, cut: cut).isEmpty)
+    }
+
+    @Test func refrainModesDecodeUnchanged() throws {
+        for mode in ["identical", "sameClips", "free", "sameMotifs"] {
+            let style = try JSONDecoder().decode(CutStyle.self, from: Data(#"{"refrainMode": "\#(mode)"}"#.utf8))
+            #expect(style.refrainMode.rawValue == mode)
+        }
+        #expect(CutStyle.RefrainMode.sameMotifs.title == "Gleiche Motive, andere Takes")
+    }
 }
