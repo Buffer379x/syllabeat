@@ -17,6 +17,8 @@ public struct StoryTruth: Decodable, Sendable {
     public var abend: [String]
     /// Erzählreihenfolge der Kapitel (für das Drehbuch); optional.
     public var reihenfolge: [String]?
+    /// Tageszeit-Vorgabe je Kapitel (Ablauf Schritt 5); optional.
+    public var kapitelTageszeit: [String: String]?
 
     public func lineMotifs(_ text: String) -> [String]? {
         let tokens = zeilen.filter { rule in rule.enthaelt.contains { text.contains($0) } }.flatMap(\.motive)

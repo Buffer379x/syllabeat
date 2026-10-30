@@ -113,6 +113,8 @@ public enum CutEngine {
         var rating: Int
         /// Kapitelindex der Geschichte.
         var chapter: Int?
+        /// Stufe je aktivem Merkmal (`nil` = unbekannt).
+        var traits: [Int?] = []
         /// Anteile, die nicht vom Slot abhängen.
         var fixed = Scores()
 
@@ -146,6 +148,11 @@ public enum CutEngine {
         var cursor: [Int: Double]
         /// Höchster Kapitelindex im laufenden Abschnitt (Fortschritt), −1 am Abschnittsanfang.
         var chapterFloor = -1
+        /// Je aktivem Merkmal: höchste Stufe (fortlaufend) bzw. zuletzt gezeigte und im Abschnitt gesehene Stufen
+        /// (blockweise).
+        var traitFloor: [Int] = []
+        var traitLast: [Int] = []
+        var traitSeen: [UInt64] = []
     }
 
     struct Node {
@@ -190,12 +197,43 @@ public enum CutEngine {
         let text = normalize(textScores.values, keys: Set(slots.compactMap(\.lineID)), units: units)
         let story = normalize(textScores.sections, keys: Set(slots.compactMap(\.sectionID)), units: units)
         let rules = StoryContext.make(project, slots: slots)
+        let traits = project.story.traits.filter { $0.rule != .off }
+        // Vorausschau für fortlaufende Merkmale: höchste Stufe, die alle späteren freien Slots mit ihrem erlaubten
+        // Material noch zeigen können (unbekannte Stufen passen zu allem). Höher darf ein Slot nicht vorrücken, sonst
+        // müsste die Geschichte später zurückspringen.
+        var cap = Array(repeating: Array(repeating: Int.max, count: traits.count), count: slots.count)
+        if traits.contains(where: { $0.rule == .progressive }),
+            units.contains(where: { $0.traits.contains { $0 != nil } })
+        {
+            var running = Array(repeating: Int.max, count: traits.count)
+            for slotIndex in slots.indices.reversed() {
+                if case .free = slots[slotIndex].role {
+                    let allowed = rules.allowed[slotIndex]
+                    for (t, trait) in traits.enumerated()
+                    where trait.rule == .progressive && rules.pinned[slotIndex][trait.id] == nil {
+                        var best = -1
+                        for unit in units where allowed == nil || unit.chapter.map({ allowed?[$0] != nil }) == true {
+                            guard t < unit.traits.count, let level = unit.traits[t] else {
+                                best = Int.max
+                                break
+                            }
+                            best = max(best, level)
+                        }
+                        if best >= 0 { running[t] = min(running[t], best) }
+                    }
+                }
+                cap[slotIndex] = running
+            }
+        }
         var nodes: [Node] = []
         nodes.reserveCapacity(slots.count * beamWidth)
         var beams = [
             Beam(
                 score: 0, node: -1, clipUses: Array(repeating: 0, count: project.clips.count),
-                unitUses: Array(repeating: 0, count: units.count), cursor: [:])
+                unitUses: Array(repeating: 0, count: units.count), cursor: [:],
+                traitFloor: Array(repeating: -1, count: traits.count),
+                traitLast: Array(repeating: -1, count: traits.count),
+                traitSeen: Array(repeating: 0, count: traits.count))
         ]
         /// Pick des Slots `index` auf dem Pfad, der in `node` endet.
         func pick(at index: Int, from node: Int, slot current: Int) -> Pick {
@@ -247,6 +285,32 @@ public enum CutEngine {
                                 scores.chapter -= 1.5
                                 if !relaxed.contains("kapitel") { relaxed.append("kapitel") }
                             }
+                            // Merkmale: festgelegt (genau dieser Wert), fortlaufend (nie zurück), blockweise (kein Zurückwechseln im
+                            // Abschnitt, nur Abschlag). Unbekannte Werte sind neutral.
+                            var violates = false
+                            for (t, trait) in traits.enumerated() {
+                                guard t < unit.traits.count, let level = unit.traits[t] else { continue }
+                                if let pin = rules.pinned[slotIndex][trait.id] {
+                                    if level != pin {
+                                        violates = true
+                                        scores.continuity -= 3
+                                        if !relaxed.contains(trait.id) { relaxed.append(trait.id) }
+                                    }
+                                    continue
+                                }
+                                switch trait.rule {
+                                case .progressive where level < beam.traitFloor[t] || level > cap[slotIndex][t]:
+                                    violates = true
+                                    scores.continuity -= 3
+                                    if !relaxed.contains(trait.id) { relaxed.append(trait.id) }
+                                case .blockwise
+                                where !rules.sectionStart[slotIndex] && level != beam.traitLast[t]
+                                    && beam.traitSeen[t] & (1 << UInt64(min(level, 63))) != 0:
+                                    scores.continuity -= 0.8
+                                default: break
+                                }
+                            }
+                            if violates && strict { continue }
                             scores.reuse =
                                 -0.35 * Double(beam.clipUses[unit.clipIndex]) - 0.8
                                 * Double(beam.unitUses[candidate.unit])
@@ -288,6 +352,24 @@ public enum CutEngine {
                     let chapter = units[pick.unit].chapter
                 {
                     beam.chapterFloor = max(beam.chapterFloor, chapter)
+                }
+                for (t, trait) in traits.enumerated() {
+                    if rules.sectionStart[slotIndex] {
+                        beam.traitLast[t] = -1
+                        beam.traitSeen[t] = 0
+                    }
+                    guard case .free = slot.role, pick.unit >= 0, t < units[pick.unit].traits.count,
+                        let level = units[pick.unit].traits[t]
+                    else { continue }
+                    if trait.rule == .progressive, rules.pinned[slotIndex][trait.id] == nil,
+                        !pick.relaxed.contains(trait.id)
+                    {
+                        beam.traitFloor[t] = max(beam.traitFloor[t], level)
+                    }
+                    if trait.rule == .blockwise {
+                        beam.traitLast[t] = level
+                        beam.traitSeen[t] |= 1 << UInt64(min(level, 63))
+                    }
                 }
                 nodes.append(Node(pick: pick, parent: beam.node))
                 beam.node = nodes.count - 1
@@ -382,6 +464,8 @@ public enum CutEngine {
         }
         let chapterIndex = Dictionary(
             project.story.chapters.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let traits = project.story.traits.filter { $0.rule != .off }
+        let resolved = StoryResolver.resolve(project)
         for (clipIndex, clip) in project.clips.enumerated() {
             guard !clip.excluded, !clip.meta.needsConversion, clip.meta.duration > 0, !clip.scenes.isEmpty else {
                 continue
@@ -414,7 +498,8 @@ public enum CutEngine {
                         aesthetics: features?.aesthetics ?? 0,
                         sharpness: percentile(features?.sharpness ?? 0, allSharpness),
                         utility: features?.isUtility ?? false, shotSize: features?.shotSize ?? .wide,
-                        rating: clip.rating ?? 0, chapter: clip.chapterID.flatMap { chapterIndex[$0] })
+                        rating: clip.rating ?? 0, chapter: clip.chapterID.flatMap { chapterIndex[$0] },
+                        traits: traits.map { resolved[clip.id]?.traitLevels[$0.id] })
                     unit.fixed.aesthetics = 0.4 * (unit.aesthetics + 1) / 2 - (unit.utility ? 1.5 : 0)
                     unit.fixed.sharpness = unit.sharpness < 0.15 ? -0.4 : 0
                     unit.fixed.rating = unit.rating > 0 ? 0.15 * Double(unit.rating - 3) : 0

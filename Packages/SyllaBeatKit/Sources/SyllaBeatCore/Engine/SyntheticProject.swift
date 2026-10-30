@@ -130,5 +130,14 @@ public enum SyntheticProject {
             project.story.plan[section.id] = entry
         }
         if random.unit() < 0.3 { project.story.montage = [] }
+        // Tageszeiten (teils unbekannt) und gelegentlich eine Festlegung.
+        let values = Trait.timeOfDay.values
+        for index in project.clips.indices where random.unit() < 0.6 {
+            let value = values[Int(random.next() % UInt64(values.count))]
+            project.clips[index].traits[Trait.timeOfDay.id] = TraitValue(value: value, source: .user)
+        }
+        if let section = project.analysis?.sections.first, random.unit() < 0.3 {
+            project.story.traits[0].pinned[section.id] = values[Int(random.next() % UInt64(values.count))]
+        }
     }
 }

@@ -37,36 +37,40 @@ public enum StoryResolver {
         return result
     }
 
-    /// Wert eines Merkmals mit Herkunft. Vorrang: Nutzer > Kapitel-Vorgabe > Dateiname > Beschreibung.
+    /// Wert eines Merkmals mit Herkunft. Vorrang: Nutzer (Clip) > Dateiname > Kapitel-Vorgabe > Beschreibung; was der
+    /// einzelne Clip sagt, schlägt die pauschale Vorgabe seines Kapitels.
     public static func traitValue(
         _ clip: Clip, trait: Trait, chapter: Chapter?, motif: FileNameMotif
     )
         -> (String, TraitValue.Source)?
     {
         if let value = clip.traits[trait.id], value.source == .user { return (value.value, .user) }
-        if let value = chapter?.traits[trait.id] { return (value, .user) }
         if let value = clip.traits[trait.id], value.source == .fileName { return (value.value, .fileName) }
         if trait.id == Trait.timeOfDay.id, let value = motif.timeOfDay { return (value, .fileName) }
+        if let value = chapter?.traits[trait.id] { return (value, .user) }
         if let value = clip.traits[trait.id], value.source == .description { return (value.value, .description) }
-        if trait.id == Trait.timeOfDay.id,
-            let value = timeOfDay(
-                fromDescription: ([clip.description] + clip.scenes.map(\.description) + clip.tags).joined(
-                    separator: " "))
+        // Nur beschriebene Clips: Ohne Abend- oder Nachtstichwort gelten sie als Tag.
+        let described = ([clip.description] + clip.scenes.map(\.description)).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if trait.id == Trait.timeOfDay.id, !described.isEmpty,
+            let value = timeOfDay(fromDescription: described + " " + clip.tags.joined(separator: " "))
         {
             return (value, .description)
         }
         return nil
     }
 
-    /// Tageszeit aus einer freien Bildbeschreibung (Stichwörter; im Spike 36/40 richtig).
+    /// Tageszeit aus einer freien Bildbeschreibung: Stichwörter für Nacht und Abend, sonst Tag (Abendlicht wird in
+    /// Beschreibungen genannt; im Spike 36/40 richtig). Leerer Text: unbekannt.
     public static func timeOfDay(fromDescription text: String) -> String? {
         let lower = text.lowercased()
+        guard !lower.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         if ["nacht", "dunkel", "sterne", "mond"].contains(where: lower.contains) { return "Nacht" }
         if ["abend", "sonnenuntergang", "dämmerung", "untergehend", "leuchtende fenster", "leuchtenden fenstern"]
             .contains(where: lower.contains)
         {
             return "Abend"
         }
-        return nil
+        return "Tag"
     }
 }

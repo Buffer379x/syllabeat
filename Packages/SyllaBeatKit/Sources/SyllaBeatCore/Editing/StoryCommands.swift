@@ -188,3 +188,82 @@ public struct SetAsksForChapters: EditCommand {
         project.story.asksForChapters = asks
     }
 }
+
+/// Merkmalswert für Clips setzen (Herkunft Nutzer) oder mit `nil` auf „automatisch“ zurück.
+public struct SetTraitValue: EditCommand {
+    public var clipIDs: Set<String>
+    public var traitID: String
+    public var value: String?
+    public var textScores: TextScores
+
+    public init(clipIDs: Set<String>, traitID: String, value: String?, textScores: TextScores = TextScores()) {
+        self.clipIDs = clipIDs
+        self.traitID = traitID
+        self.value = value
+        self.textScores = textScores
+    }
+
+    public var actionName: String { "Tageszeit ändern" }
+
+    public func apply(to project: inout Project) throws {
+        guard let trait = project.story.traits.first(where: { $0.id == traitID }) else {
+            throw EditError.invalidValue("Dieses Merkmal gibt es nicht.")
+        }
+        if let value, !trait.values.contains(value) { throw EditError.invalidValue("Unbekannter Wert „\(value)“.") }
+        for index in project.clips.indices where clipIDs.contains(project.clips[index].id) {
+            project.clips[index].traits[traitID] = value.map { TraitValue(value: $0, source: .user) }
+        }
+        try project.recutForStory(textScores)
+    }
+}
+
+/// Merkmal für einen Abschnitt festlegen (`nil` = automatisch).
+public struct SetTraitPin: EditCommand {
+    public var traitID: String
+    public var sectionID: String
+    public var value: String?
+    public var textScores: TextScores
+
+    public init(traitID: String, sectionID: String, value: String?, textScores: TextScores = TextScores()) {
+        self.traitID = traitID
+        self.sectionID = sectionID
+        self.value = value
+        self.textScores = textScores
+    }
+
+    public var actionName: String { "Tageszeit festlegen" }
+
+    public func apply(to project: inout Project) throws {
+        guard let index = project.story.traits.firstIndex(where: { $0.id == traitID }) else {
+            throw EditError.invalidValue("Dieses Merkmal gibt es nicht.")
+        }
+        guard project.story.traits[index].pinned[sectionID] != value else { return }
+        project.story.traits[index].pinned[sectionID] = value
+        try project.recutForStory(textScores)
+    }
+}
+
+/// Merkmal eines ganzen Kapitels vorgeben, z. B. „Heimfahrt: Abend“.
+public struct SetChapterTrait: EditCommand {
+    public var chapterID: String
+    public var traitID: String
+    public var value: String?
+    public var textScores: TextScores
+
+    public init(chapterID: String, traitID: String, value: String?, textScores: TextScores = TextScores()) {
+        self.chapterID = chapterID
+        self.traitID = traitID
+        self.value = value
+        self.textScores = textScores
+    }
+
+    public var actionName: String { "Kapitel-Vorgabe ändern" }
+
+    public func apply(to project: inout Project) throws {
+        guard let index = project.story.chapters.firstIndex(where: { $0.id == chapterID }) else {
+            throw EditError.invalidValue("Dieses Kapitel gibt es nicht.")
+        }
+        project.story.chapters[index].traits[traitID] = value
+        try project.recutForStory(textScores)
+    }
+}

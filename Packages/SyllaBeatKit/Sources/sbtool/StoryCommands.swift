@@ -30,7 +30,11 @@ func appTextScores(_ project: Project) async throws -> TextScores {
 /// Kapitel aus der Wahrheit setzen: Kapitel in `reihenfolge`, jeder Clip ins erste Kapitel, dessen Namensteile passen.
 func applyTruthChapters(_ project: inout Project, _ truth: StoryTruth) {
     let order = truth.reihenfolge ?? truth.kapitel.keys.sorted()
-    project.story.chapters = order.enumerated().map { Chapter(id: $1, name: $1, color: $0) }
+    project.story.chapters = order.enumerated().map { index, name in
+        Chapter(
+            id: name, name: name, color: index,
+            traits: truth.kapitelTageszeit?[name].map { [Trait.timeOfDay.id: $0] } ?? [:])
+    }
     for index in project.clips.indices {
         let name = project.clips[index].name.lowercased()
         project.clips[index].chapterID = order.first { chapter in
@@ -106,6 +110,24 @@ func storyCommand(_ arguments: [String]) async throws {
             }
             milliseconds += Double(DispatchTime.now().uptimeNanoseconds - started) / 1e6
             let m = StoryMetrics.measure(project, cut: cut, truth: truth)
+            if seed == Int(ProcessInfo.processInfo.environment["FOLGE_SEED"] ?? "1"), arguments.contains("--folge"),
+                name == "mit Geschichte"
+            {
+                let resolved = StoryResolver.resolve(project)
+                for shot in cut.shots {
+                    let clip = project.clip(withID: shot.clipID)
+                    let section = project.analysis?.sections.first {
+                        $0.start <= shot.start.time + 0.01 && shot.start.time + 0.01 < $0.end
+                    }
+                    let evening = truth.abend.contains { clip?.name.lowercased().contains($0) ?? false }
+                    print(
+                        String(
+                            format: "  %6.1f %@ %@ %@ Stufe %@%@", shot.start.time, section?.label ?? "–",
+                            evening ? "☾" : "☀", clip?.name ?? shot.clipID,
+                            resolved[shot.clipID]?.traitLevels["tageszeit"].map(String.init) ?? "–",
+                            shot.reasons?.relaxed.isEmpty == false ? " gelockert: \(shot.reasons!.relaxed)" : ""))
+                }
+            }
             sum.chapterHits += m.chapterHits
             sum.lineHits += m.lineHits
             sum.timeSwitches += m.timeSwitches

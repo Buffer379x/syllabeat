@@ -1,6 +1,6 @@
 import Foundation
 
-/// Prüft die Invarianten I1–I5, I8 und I9 eines Schnitts (Plan Abschnitt 10.1). I6 (Determinismus) und I7 (Exporte) prüfen
+/// Prüft die Invarianten I1–I5 und I8–I10 eines Schnitts (Plan Abschnitt 10.1). I6 (Determinismus) und I7 (Exporte) prüfen
 /// die Tests direkt.
 public enum CutValidator {
     /// `minimumFactor`: Anteil der Mindestdauer, den jeder freie Shot erreichen muss (nach Rasterkorrekturen ½).
@@ -73,6 +73,22 @@ public enum CutValidator {
                 if !(chapter.map { entry[$0] != nil } ?? false), !(shot.reasons?.relaxed.contains("kapitel") ?? false) {
                     issues.append("I9: \(shot.id) liegt außerhalb der Kapitel seines Abschnitts.")
                 }
+            }
+        }
+        // I10: fortlaufende Merkmale fallen entlang des Schnitts nicht ab (ausgenommen festgelegte Abschnitte, Kopien,
+        // fixierte Shots, unbekannte Werte und gelockerte Shots).
+        let resolved = StoryResolver.resolve(project)
+        let sections = SlotPlanner.normalizedSections(analysis)
+        for trait in project.story.traits where trait.rule == .progressive {
+            var floor = -1
+            for shot in cut.shots where !shot.locked && shot.reasons?.copiedFrom == nil {
+                let middle = (shot.start.time + shot.end.time) / 2
+                let section = sections.first { $0.start <= middle && middle < $0.end }
+                if let section, trait.pinned[section.id] != nil { continue }
+                guard let level = resolved[shot.clipID]?.traitLevels[trait.id] else { continue }
+                if shot.reasons?.relaxed.contains(trait.id) == true { continue }
+                if level < floor { issues.append("I10: \(shot.id) fällt bei „\(trait.name)“ zurück.") }
+                floor = max(floor, level)
             }
         }
         // I5: fixierte Shots unverändert.
