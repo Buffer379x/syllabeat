@@ -47,6 +47,8 @@ struct ProjectWorkspace: View {
     @State private var showsWelcome = false
     /// Format-Vorschlag, den der Nutzer weggeklickt hat (gilt bis zum Schließen des Fensters).
     @State private var dismissedFormat: TimelineSettings?
+    /// „Was fehlt?“ aus der Drehbuch-Tafel: öffnet die Drehliste, sobald die Tafel geschlossen ist.
+    @State private var opensShotListAfterDrehbuch = false
 
     private var project: Project { document.project }
 
@@ -200,13 +202,21 @@ struct ProjectWorkspace: View {
                 showsWelcome = false
             }
         }
-        .sheet(isPresented: Bindable(cut).showsDrehbuch) {
+        .sheet(
+            isPresented: Bindable(cut).showsDrehbuch,
+            onDismiss: {
+                // Erst nach dem Schließen der Tafel öffnen, sonst zeigt macOS das zweite Blatt nicht.
+                if opensShotListAfterDrehbuch {
+                    opensShotListAfterDrehbuch = false
+                    cut.showsShotList = true
+                }
+            }
+        ) {
             DrehbuchSheet(
                 project: project, textScores: cut.textScores, run: { run($0) },
                 showShotList: {
+                    opensShotListAfterDrehbuch = true
                     cut.showsDrehbuch = false
-                    // Erst nach dem Schließen der Tafel öffnen, sonst zeigt macOS das zweite Blatt nicht.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { cut.showsShotList = true }
                 }
             ) {
                 cut.showsDrehbuch = false

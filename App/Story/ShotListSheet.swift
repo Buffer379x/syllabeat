@@ -70,6 +70,7 @@ struct ShotListSheet: View {
         }
         .padding(20)
         .frame(minWidth: 620, minHeight: 440)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("shotlist")
     }
 
