@@ -185,12 +185,12 @@ final class StoryUITests: XCTestCase {
         let field =
             app.dialogs.textFields.firstMatch.exists ? app.dialogs.textFields.firstMatch : app.textFields["Name"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.typeText("Wald")
-        let create = app.buttons.matching(identifier: "Anlegen").allElementsBoundByIndex.first { $0.isHittable }
-        try XCTUnwrap(create, "kein Knopf „Anlegen“").click()
+        // Return löst den Standardknopf „Anlegen“ aus (ein Klick träfe im CI die Touch-Bar-Kopie).
+        field.typeText("Wald\r")
         let group = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'library.group.k-'")
         ).firstMatch
+        if !group.waitForExistence(timeout: 2) { app.windows.buttons["Anlegen"].firstMatch.click() }
         XCTAssertTrue(group.waitForExistence(timeout: 5), "keine Gruppe „Wald“ in der Bibliothek")
 
         app.typeKey("d", modifierFlags: [.command, .shift])
