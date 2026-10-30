@@ -16,13 +16,23 @@ public struct Clip: Codable, Sendable, Equatable, Identifiable {
     public var visionModel: String?
     public var filenameSuggestion: String?
     public var originalName: String?
+    /// Kapitel der Geschichte.
+    public var chapterID: String?
+    /// Merkmal-ID → Wert mit Herkunft (Nutzer, Dateiname, Beschreibung).
+    public var traits: [String: TraitValue]
+    /// Sperrbereiche (KI-Fehler): werden nie verwendet.
+    public var blocked: [SourceRange]
 
     public init(
         id: String, media: MediaRef, original: MediaRef? = nil, meta: ClipMetadata, scenes: [ClipScene] = [],
         description: String = "",
         tags: [String] = [], mood: String? = nil, rating: Int? = nil, excluded: Bool = false,
-        visionModel: String? = nil, filenameSuggestion: String? = nil, originalName: String? = nil
+        visionModel: String? = nil, filenameSuggestion: String? = nil, originalName: String? = nil,
+        chapterID: String? = nil, traits: [String: TraitValue] = [:], blocked: [SourceRange] = []
     ) {
+        self.chapterID = chapterID
+        self.traits = traits
+        self.blocked = blocked
         self.id = id
         self.media = media
         self.original = original
@@ -53,12 +63,16 @@ public struct Clip: Codable, Sendable, Equatable, Identifiable {
         visionModel = try c.decodeIfPresent(String.self, forKey: .visionModel)
         filenameSuggestion = try c.decodeIfPresent(String.self, forKey: .filenameSuggestion)
         originalName = try c.decodeIfPresent(String.self, forKey: .originalName)
+        chapterID = try c.decodeIfPresent(String.self, forKey: .chapterID)
+        traits = try c.decode(.traits, default: [:])
+        blocked = try c.decode(.blocked, default: [])
     }
 
     public var name: String { (original ?? media).fileName }
 
     /// Übernimmt eine neue Analyse, behält aber alles, was der Nutzer oder ein Modell eingetragen hat:
-    /// Beschreibung, Schlagwörter, Stimmung, Bewertung, Ausschluss und Szenenbeschreibungen gleicher Szenen.
+    /// Beschreibung, Schlagwörter, Stimmung, Bewertung, Ausschluss, Kapitel, Sperrbereiche, Merkmale von Nutzer oder
+    /// Beschreibung und Szenenbeschreibungen gleicher Szenen.
     public func mergingAnalysis(_ fresh: Clip) -> Clip {
         var result = fresh
         result.description = description.isEmpty ? fresh.description : description
@@ -81,7 +95,8 @@ public struct Clip: Codable, Sendable, Equatable, Identifiable {
             id: id, media: result.media, original: result.original, meta: result.meta, scenes: result.scenes,
             description: result.description, tags: result.tags, mood: result.mood, rating: result.rating,
             excluded: result.excluded, visionModel: result.visionModel,
-            filenameSuggestion: result.filenameSuggestion, originalName: result.originalName)
+            filenameSuggestion: result.filenameSuggestion, originalName: result.originalName, chapterID: chapterID,
+            traits: traits.filter { $0.value.source != .fileName }, blocked: blocked)
     }
 }
 

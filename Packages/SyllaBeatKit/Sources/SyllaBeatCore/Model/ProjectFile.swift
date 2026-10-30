@@ -43,7 +43,7 @@ public enum ProjectFile {
             case 1:
                 let old = try JSONDecoder().decode(LegacyV1.Project.self, from: data)
                 return Loaded(project: try MigrationV1.migrate(old), migratedFrom: 1)
-            case Project.formatVersion:
+            case 2, Project.formatVersion:
                 let project = try JSONDecoder().decode(Project.self, from: data)
                 return Loaded(project: project, migratedFrom: nil)
             default:

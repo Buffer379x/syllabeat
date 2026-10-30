@@ -13,7 +13,7 @@ import Testing
 
     @Test func keepsCatalogAndDescriptions() throws {
         let (project, _) = try golden("g1-basis-25p")
-        #expect(project.version == 2)
+        #expect(project.version == 3)
         #expect(project.name == "Basis 25p")
         #expect(project.timeline.fps == Rational(25))
         #expect(project.song?.fileName == "Sommer Lied (Master).wav")
@@ -61,7 +61,7 @@ import Testing
         #expect(cut.shots[0].sceneID == "m1-s1")
     }
 
-    @Test func roundTripsAsVersion2() throws {
+    @Test func roundTripsAsVersion3() throws {
         for name in Fixtures.goldenNames {
             let (project, _) = try golden(name)
             let data = try ProjectFile.encode(project)
@@ -69,7 +69,7 @@ import Testing
             #expect(reloaded.migratedFrom == nil)
             #expect(reloaded.project == project, "\(name)")
             let text = String(decoding: data, as: UTF8.self)
-            #expect(text.contains("\"version\" : 2"))
+            #expect(text.contains("\"version\" : 3"))
             #expect(!text.contains("fps_num"))
         }
     }
@@ -98,8 +98,8 @@ import Testing
     }
 
     @Test func rejectsUnknownAndBrokenFiles() {
-        #expect(throws: ProjectFileError.unsupportedVersion(3)) {
-            try ProjectFile.decode(Data(#"{"version": 3}"#.utf8))
+        #expect(throws: ProjectFileError.unsupportedVersion(5)) {
+            try ProjectFile.decode(Data(#"{"version": 5}"#.utf8))
         }
         #expect(throws: ProjectFileError.notJSON) { try ProjectFile.decode(Data("kein json".utf8)) }
         #expect(throws: ProjectFileError.unsupportedVersion(nil)) { try ProjectFile.decode(Data("{}".utf8)) }

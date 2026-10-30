@@ -88,12 +88,27 @@ public struct ShotReasons: Codable, Sendable, Equatable {
     public var alternatives: [Alternative]
     /// Kopie aus der Vorlage einer Wiederholung (Refrain identisch).
     public var copiedFrom: String?
+    /// Regeln der Geschichte, die für diesen Shot gelockert wurden (z. B. „kapitel“ bei Materialmangel).
+    public var relaxed: [String]
 
-    public init(components: [String: Double], total: Double, alternatives: [Alternative], copiedFrom: String? = nil) {
+    public init(
+        components: [String: Double], total: Double, alternatives: [Alternative], copiedFrom: String? = nil,
+        relaxed: [String] = []
+    ) {
         self.components = components
         self.total = total
         self.alternatives = alternatives
         self.copiedFrom = copiedFrom
+        self.relaxed = relaxed
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        components = try c.decode(.components, default: [:])
+        total = try c.decode(.total, default: 0)
+        alternatives = try c.decode(.alternatives, default: [])
+        copiedFrom = try c.decodeIfPresent(String.self, forKey: .copiedFrom)
+        relaxed = try c.decode(.relaxed, default: [])
     }
 }
 

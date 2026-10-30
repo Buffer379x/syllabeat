@@ -5,7 +5,7 @@ import Foundation
 /// Fehlende Schlüssel erhalten beim Lesen Standardwerte. So öffnen spätere Versionen von 0.3 auch Dateien
 /// aus früheren Meilensteinen, und unbekannte Schlüssel aus neueren Dateien werden ignoriert.
 public struct Project: Codable, Sendable, Equatable {
-    public static let formatVersion = 2
+    public static let formatVersion = 3
 
     public var version: Int
     public var name: String
@@ -18,6 +18,8 @@ public struct Project: Codable, Sendable, Equatable {
     public var analysis: SongAnalysis?
     /// KI-Regie (Stufe 1); `nil` heißt: Schnitt ohne Storyboard.
     public var storyboard: Storyboard?
+    /// Kapitel, Drehbuch und Merkmale; leer heißt: Schnitt wie 0.3.0.
+    public var story: Story
     public var style: CutStyle
     /// Aktive Schnittvariante.
     public var cut: Cut?
@@ -39,6 +41,7 @@ public struct Project: Codable, Sendable, Equatable {
         self.clips = clips
         self.analysis = analysis
         self.storyboard = nil
+        self.story = Story()
         self.style = style
         self.cut = cut
         self.variants = variants
@@ -56,6 +59,7 @@ public struct Project: Codable, Sendable, Equatable {
         clips = try c.decode(.clips, default: [])
         analysis = try c.decodeIfPresent(SongAnalysis.self, forKey: .analysis)
         storyboard = try c.decodeIfPresent(Storyboard.self, forKey: .storyboard)
+        story = try c.decode(.story, default: Story())
         style = try c.decode(.style, default: CutStyle())
         cut = try c.decodeIfPresent(Cut.self, forKey: .cut)
         variants = try c.decode(.variants, default: [])
