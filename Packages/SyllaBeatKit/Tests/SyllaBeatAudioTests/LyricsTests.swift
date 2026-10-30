@@ -133,3 +133,58 @@ import Testing
         #expect(zip(corrected, corrected.dropFirst()).allSatisfy { $0.start < $1.start })
     }
 }
+
+/// Whisper setzt manchmal die Wörter eines ganzen Abschnitts auf dieselbe Sekunde (gemessen im Bauernhof-Song).
+@Suite struct CollapsedTimingTests {
+    static func words(_ starts: [Double]) -> [RecognizedWord] {
+        starts.enumerated().map {
+            RecognizedWord(text: "w\($0.offset)", start: $0.element, end: $0.element + 0.02, probability: 1)
+        }
+    }
+
+    @Test func collapsedTimestampsAreDropped() {
+        let normal = (0..<10).map { Double($0) * 2 }
+        let collapsed = (0..<30).map { 30 + Double($0) / 30 }
+        let after = (0..<5).map { 40 + Double($0) * 0.4 }
+        let kept = WordTiming.dropCollapsed(Self.words(normal + collapsed + after))
+        #expect(kept.count == 15)
+        #expect(kept.allSatisfy { $0.start < 30 || $0.start >= 40 })
+    }
+
+    @Test func fastRapIsKept() {
+        let kept = WordTiming.dropCollapsed(Self.words((0..<32).map { Double($0) * 0.125 }))
+        #expect(kept.count == 32)
+    }
+
+    @Test func collapsedLinesAreInterpolatedAndMarked() {
+        let lyrics = """
+            eins zwei drei vier fünf sechs
+            sieben acht neun zehn elf zwölf
+            dreizehn vierzehn fünfzehn sechzehn siebzehn achtzehn
+            neunzehn
+            """
+        let texts = lyrics.split(whereSeparator: \.isWhitespace).map(String.init)
+        var recognized: [RecognizedWord] = []
+        for (index, word) in texts.enumerated() {
+            let start: Double
+            switch index {
+            case 0..<6: start = Double(index) * 0.5
+            case 6..<18: start = 20 + Double(index - 6) * 0.05
+            default: start = 30
+            }
+            recognized.append(RecognizedWord(text: word, start: start, end: start + 0.04, probability: 1))
+        }
+        let analysis = LyricsWorkflow.apply(transcript: recognized, lyrics: lyrics, to: SongAnalysis(duration: 40))
+        #expect(analysis.lines.count == 4)
+        for line in analysis.lines[1...2] {
+            #expect(line.end - line.start >= 3, "\(line.text): \(line.start)–\(line.end)")
+            #expect(line.needsReview)
+        }
+        #expect(!analysis.lines[0].needsReview)
+    }
+
+    @Test func parenthesizedLinesAreIgnored() {
+        let text = LyricsText("[Outro]\nWir fahren nach Haus\n(End)\n(Instrumental)")
+        #expect(text.blocks.flatMap(\.lines) == ["Wir fahren nach Haus"])
+    }
+}

@@ -21,6 +21,9 @@ public struct LyricsText: Sendable, Equatable {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if line.isEmpty {
                 close()
+            } else if line.hasPrefix("("), line.hasSuffix(")") {
+                // Regieanweisung wie „(End)“ oder „(Instrumental)“, kein Gesang.
+                continue
             } else if line.hasPrefix("["), line.hasSuffix("]") {
                 close()
                 current.label = String(line.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
@@ -316,6 +319,26 @@ public enum Syllables {
 /// −0,15…+0,6 s; starke Einsätze im Stimmband werden bevorzugt, die Reihenfolge bleibt erhalten. Ohne passenden
 /// Einsatz bleibt die erkannte Zeit (um den Median-Versatz verschoben).
 public enum WordTiming {
+    /// Verwirft Läufe von mindestens `minimumRun` Wörtern, deren Anfänge jeweils weniger als `maximumGap` auseinander
+    /// liegen: Whisper setzt so manchmal einen ganzen Abschnitt auf dieselbe Sekunde. Der Lückenausgleich der
+    /// Ausrichtung verteilt diese Wörter danach geschätzt zwischen ihren Nachbarn.
+    public static func dropCollapsed(
+        _ words: [RecognizedWord], minimumRun: Int = 4, maximumGap: Double = 0.06
+    ) -> [RecognizedWord] {
+        guard words.count >= minimumRun else { return words }
+        var keep = Array(repeating: true, count: words.count)
+        var start = 0
+        while start < words.count {
+            var end = start
+            while end + 1 < words.count, words[end + 1].start - words[end].start < maximumGap { end += 1 }
+            if end - start + 1 >= minimumRun {
+                for index in start...end { keep[index] = false }
+            }
+            start = end + 1
+        }
+        return words.indices.filter { keep[$0] }.map { words[$0] }
+    }
+
     public static func correct(
         _ words: [RecognizedWord], spectrum: Spectrum, window: ClosedRange<Double> = -0.15...0.6
     )
@@ -419,7 +442,8 @@ public enum LyricsWorkflow {
             result.lines = lines.lines
             if let audioSections { result.sections = audioSections }
         } else {
-            let aligned = LyricsAligner.align(text, to: transcript, duration: analysis.duration)
+            let aligned = LyricsAligner.align(
+                text, to: WordTiming.dropCollapsed(transcript), duration: analysis.duration)
             words = aligned.words
             result.lines = aligned.lines
             let fromText = SongStructure.sections(lyrics: text, aligned: aligned, analysis: analysis)
