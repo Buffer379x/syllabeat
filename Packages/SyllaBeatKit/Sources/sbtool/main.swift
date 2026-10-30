@@ -36,6 +36,7 @@ let usage = """
       wordtruth <Ordner>         Transkription, Wortzeit-Korrektur und Ausrichtung gegen *.truth.json bewerten
       geschichte <Projekt> <Wahrheit> [--seeds N]   Kapitel-, Zeilentreue und Tageszeit-Wechsel messen
       drehbuch <Projekt> <Wahrheit>   Drehbuch-Vorschlag ohne KI gegen die Wahrheit prüfen
+      drehliste <Projekt> [<Wahrheit>]   Was fehlt? Zeilen ohne klares Bild, knappe Kapitel, nur mit Wasserzeichen
     """
 
 struct ToolError: Error, CustomStringConvertible {
@@ -144,6 +145,7 @@ do {
     case ("bench-preview", 2): try await benchPreview(fixtures: URL(fileURLWithPath: arguments[1]))
     case ("geschichte", 3...): try await storyCommand(Array(arguments.dropFirst()))
     case ("drehbuch", 3): try await drehbuchCommand(Array(arguments.dropFirst()))
+    case ("drehliste", 2...3): try await shotListCommand(Array(arguments.dropFirst()))
     case ("search", 3...): try await search(arguments[1], query: arguments.dropFirst(2).joined(separator: " "))
     default:
         FileHandle.standardError.write(Data((usage + "\n").utf8))

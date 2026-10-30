@@ -267,3 +267,54 @@ public struct SetChapterTrait: EditCommand {
         try project.recutForStory(textScores)
     }
 }
+
+/// Zeile als „braucht ein Bild“ (`true`) oder „Bild egal“ (`false`) markieren; `nil` hebt die Markierung auf.
+public struct SetLineNeed: EditCommand {
+    public var text: String
+    public var need: Bool?
+
+    public init(text: String, need: Bool?) {
+        self.text = text
+        self.need = need
+    }
+
+    public var actionName: String { "Zeile markieren" }
+
+    public func apply(to project: inout Project) throws {
+        project.story.lineNeeds[text.trimmingCharacters(in: .whitespacesAndNewlines)] = need
+    }
+}
+
+/// Stil-Vorlage für die Prompts der Drehliste.
+public struct SetPromptStyle: EditCommand {
+    public var text: String
+    public init(text: String) { self.text = text }
+
+    public var actionName: String { "Stil-Vorlage ändern" }
+
+    public func apply(to project: inout Project) throws {
+        project.story.promptStyle = text
+    }
+}
+
+/// Kapitel-Vorschläge für neue Clips übernehmen (Clip-ID → Kapitel-ID), ein Undo-Schritt.
+public struct AcceptChapterSuggestions: EditCommand {
+    public var assignments: [String: String]
+    public var textScores: TextScores
+
+    public init(assignments: [String: String], textScores: TextScores = TextScores()) {
+        self.assignments = assignments
+        self.textScores = textScores
+    }
+
+    public var actionName: String { "Kapitel-Vorschläge übernehmen" }
+
+    public func apply(to project: inout Project) throws {
+        for index in project.clips.indices {
+            if let chapter = assignments[project.clips[index].id], project.story.chapter(withID: chapter) != nil {
+                project.clips[index].chapterID = chapter
+            }
+        }
+        try project.recutForStory(textScores)
+    }
+}

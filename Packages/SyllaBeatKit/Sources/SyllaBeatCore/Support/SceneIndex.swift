@@ -32,7 +32,26 @@ public struct SceneIndex: Sendable {
         self.entries = entries
     }
 
+    init(entries: [Entry]) {
+        self.entries = entries
+    }
+
     public var isEmpty: Bool { entries.isEmpty }
+
+    /// Mittleres, normiertes Szenen-Embedding je Clip (für Kapitel-Vorschläge).
+    public func clipVectors() -> [String: [Float]] {
+        var sums: [String: [Float]] = [:]
+        for entry in entries {
+            var sum = sums[entry.clipID] ?? [Float](repeating: 0, count: entry.vector.count)
+            guard sum.count == entry.vector.count else { continue }
+            for i in sum.indices { sum[i] += entry.vector[i] }
+            sums[entry.clipID] = sum
+        }
+        return sums.mapValues { sum in
+            let norm = sum.reduce(0) { $0 + $1 * $1 }.squareRoot()
+            return norm > 0 ? sum.map { $0 / norm } : sum
+        }
+    }
     public var count: Int { entries.count }
 
     /// Clips nach bester Szene sortiert (Skalarprodukt normierter Vektoren).

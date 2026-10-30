@@ -141,3 +141,24 @@ func storyCommand(_ arguments: [String]) async throws {
                 Double(sum.sandwiches) / n, Double(sum.shots) / n, milliseconds / n))
     }
 }
+
+/// `drehliste <Projekt> [<Wahrheit>]`: Was fehlt? Mit Wahrheit werden Kapitel und Drehbuch daraus gesetzt.
+func shotListCommand(_ arguments: [String]) async throws {
+    guard let path = arguments.first else { throw ToolError(description: "Aufruf: drehliste <Projekt> [<Wahrheit>]") }
+    var project = try load(path).project
+    if arguments.count > 1 {
+        let truth = try JSONDecoder().decode(
+            StoryTruth.self, from: Data(contentsOf: URL(fileURLWithPath: arguments[1])))
+        applyTruthChapters(&project, truth)
+        project.story.plan = truthPlan(project, truth)
+    }
+    let rows = try await appTextScores(project).values
+    var confidence: [String: Double] = [:]
+    for line in project.analysis?.lines ?? [] {
+        if let row = rows[line.id] {
+            confidence[line.text.trimmingCharacters(in: .whitespaces)] = CutEngine.gateConfidence(row)
+        }
+    }
+    let report = CoverageAnalyzer.analyze(project, lineConfidence: confidence)
+    print(ShotList.text(ShotList.entries(report, project: project)))
+}
