@@ -20,7 +20,10 @@ struct InspectorPane: View {
                 if let shot = cut.selectedShot {
                     ShotInspector(shot: shot, project: document.project, media: media, cut: cut)
                 } else if let id = selectedClipID, let clip = document.project.clip(withID: id) {
-                    ClipInspector(clip: clip, project: document.project, media: media, ai: ai) { command in
+                    ClipInspector(
+                        clip: clip, project: document.project, media: media, ai: ai,
+                        view: { cut.view(clipID: clip.id) }
+                    ) { command in
                         errorMessage = document.run(command, undoManager: undoManager)
                     }
                 } else {
@@ -42,6 +45,7 @@ private struct ClipInspector: View {
     var project: Project
     var media: MediaController
     var ai: AIController
+    var view: () -> Void
     var run: (any EditCommand) -> Void
     @State private var description = ""
     @State private var tags = ""
@@ -111,6 +115,31 @@ private struct ClipInspector: View {
                     Label(warning, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
                 }
             }
+        }
+        InspectorSection("Sperrbereiche (\(clip.blocked.count))") {
+            ForEach(Array(clip.blocked.enumerated()), id: \.offset) { index, range in
+                HStack {
+                    Image(systemName: "nosign").foregroundStyle(.red)
+                    Text("\(Format.time(range.start)) – \(Format.time(range.end))").monospacedDigit()
+                    Spacer()
+                    Button {
+                        var ranges = clip.blocked
+                        ranges.remove(at: index)
+                        run(SetBlockedRanges(clipID: clip.id, ranges: ranges))
+                    } label: {
+                        Image(systemName: "minus.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Sperre entfernen")
+                    .accessibilityLabel("Sperre entfernen")
+                }
+                .font(.callout)
+                .accessibilityIdentifier("clip.blocked.\(index)")
+            }
+            Button("Sichten und sperren …", systemImage: "eye", action: view)
+                .controlSize(.small)
+                .help("Clip groß abspielen und Fehlerstellen mit I/O/X sperren (Doppelklick in der Bibliothek)")
+                .accessibilityIdentifier("clip.review")
         }
         if !clip.scenes.isEmpty {
             InspectorSection("Szenen (\(clip.scenes.count))") {

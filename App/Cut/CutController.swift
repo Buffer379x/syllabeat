@@ -34,6 +34,15 @@ final class CutController {
     var errorMessage: String?
     /// Export-Dialog offen (Werkzeugleiste, ⌘E).
     var showsExport = false
+    /// Clip in der Clip-Ansicht (Sichten und Sperren); `nil` zeigt den Schnitt.
+    var viewedClipID: String?
+    @ObservationIgnored let clipPlayer = ClipPlayer()
+
+    /// Clip in der Clip-Ansicht öffnen; die Schnitt-Wiedergabe pausiert.
+    func view(clipID: String?) {
+        if clipID != nil { playback.player.pause() } else { clipPlayer.player.pause() }
+        viewedClipID = clipID
+    }
 
     init(document: ProjectDocument, services: AppServices, media: MediaController, playback: Playback) {
         self.document = document

@@ -492,7 +492,7 @@ public final class TimelineCanvas: NSView {
 
     /// `L` fixiert die Auswahl bzw. löst sie (wie im Inspektor).
     /// Tasten der Timeline (Plan 8.3): L fixieren (bei Auswahl), B Schnitt einfügen, ⌫ mit Vorgänger verschmelzen,
-    /// ←/→ vorige/nächste Einstellung, ⌥←/→ ein Frame, J/K/L Wiedergabe.
+    /// ←/→ vorige/nächste Einstellung, ⌥←/→ ein Frame, J/K/L Wiedergabe, X Ausschnitt sperren (KI-Fehler).
     override public func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
         let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
@@ -505,6 +505,8 @@ public final class TimelineCanvas: NSView {
             actions.transport(0)
         case (_, "j", []):
             actions.transport(-1)
+        case (_, "x", []) where selectedShotIDs.count == 1:
+            if let id = selectedShotIDs.first { actions.run(BlockShotSource(shotID: id)) }
         case (_, "b", []):
             let point = snap(playhead, modifiers: [])
             actions.run(SplitShot(at: point))
@@ -696,6 +698,12 @@ public final class TimelineCanvas: NSView {
                 item(ids.count == 1 ? "Neu schneiden" : "Auswahl neu schneiden (\(ids.count))") { [weak self] in
                     self?.actions.run(RecutShots(shotIDs: ids))
                 })
+            if ids.count == 1 {
+                menu.addItem(
+                    item("Ausschnitt sperren (KI-Fehler) – X") { [weak self] in
+                        self?.actions.run(BlockShotSource(shotID: shot.id))
+                    })
+            }
         default:
             return nil
         }

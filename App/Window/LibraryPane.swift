@@ -39,6 +39,8 @@ struct LibraryPane: View {
     var project: Project
     var media: MediaController
     @Binding var selection: String?
+    /// Doppelklick: Clip in der Clip-Ansicht öffnen.
+    var open: (String) -> Void = { _ in }
     @State private var query = ""
     @AppStorage("libraryFilter") private var filter = LibraryFilter.all
     @AppStorage("libraryShowsGrid") private var showsGrid = true
@@ -147,6 +149,7 @@ struct LibraryPane: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 120, maximum: 220), spacing: 8)], spacing: 10) {
                 ForEach(clips) { clip in
                     ClipTile(clip: clip, project: project, media: media, selected: selection == clip.id)
+                        .onTapGesture(count: 2) { open(clip.id) }
                         .onTapGesture { selection = clip.id }
                         .accessibilityAddTraits(selection == clip.id ? [.isSelected, .isButton] : .isButton)
                 }
@@ -268,6 +271,10 @@ private struct ClipBadges: View {
                 badge(
                     systemImage: "exclamationmark.triangle.fill", color: .orange,
                     help: clip.meta.warnings.joined(separator: "\n"))
+            }
+            if !clip.blocked.isEmpty {
+                badge("⊘\(clip.blocked.count)", help: "\(clip.blocked.count) Sperrbereich(e): werden nie verwendet")
+                    .accessibilityIdentifier("library.badge.blocked")
             }
             if clip.excluded { badge(systemImage: "nosign", color: .secondary, help: "Wird nie verwendet") }
         }

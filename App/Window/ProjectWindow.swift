@@ -85,10 +85,22 @@ struct ProjectWorkspace: View {
             }
             VSplitView {
                 HSplitView {
-                    LibraryPane(project: project, media: media, selection: $selectedClipID)
-                        .frame(minWidth: 220, idealWidth: 270, maxWidth: 460)
-                    PreviewPane(project: project, playback: song.playback, cut: cut)
-                        .frame(minWidth: 380, maxWidth: .infinity)
+                    LibraryPane(project: project, media: media, selection: $selectedClipID) { id in
+                        selectedClipID = id
+                        cut.view(clipID: id)
+                    }
+                    .frame(minWidth: 220, idealWidth: 270, maxWidth: 460)
+                    Group {
+                        if let id = cut.viewedClipID, let clip = project.clip(withID: id) {
+                            ClipViewer(
+                                clip: clip, player: cut.clipPlayer,
+                                run: { errorMessage = document.run($0, undoManager: undoManager) },
+                                step: { stepViewedClip($0) }, close: { cut.view(clipID: nil) })
+                        } else {
+                            PreviewPane(project: project, playback: song.playback, cut: cut)
+                        }
+                    }
+                    .frame(minWidth: 380, maxWidth: .infinity)
                     if showsInspector {
                         InspectorPane(
                             document: document, media: media, song: song, cut: cut, ai: ai,
@@ -216,6 +228,15 @@ struct ProjectWorkspace: View {
         let terms = project.storyboard?.sections.flatMap(\.searchTerms).joined(separator: "|") ?? ""
         let described = project.clips.filter { !$0.description.isEmpty }.count
         return "\(media.sceneIndex?.count ?? 0)#\(lines)#\(terms)#\(described)"
+    }
+
+    /// ↑/↓ in der Clip-Ansicht: voriger/nächster Clip in Bibliotheksreihenfolge.
+    private func stepViewedClip(_ offset: Int) {
+        guard let id = cut.viewedClipID, let index = project.clips.firstIndex(where: { $0.id == id }) else { return }
+        let next = index + offset
+        guard project.clips.indices.contains(next) else { return }
+        selectedClipID = project.clips[next].id
+        cut.view(clipID: project.clips[next].id)
     }
 
     /// Vorschlag für das Timeline-Format, sobald alle Clips eingelesen sind; nie automatisch übernommen.

@@ -101,4 +101,59 @@ final class StoryUITests: XCTestCase {
         let undone = try XCTUnwrap(try savedJSON(app, url)["timeline"] as? [String: Any])
         XCTAssertEqual(undone["fps"] as? String, "25")
     }
+
+    @MainActor
+    private func timeline(_ app: XCUIApplication) -> XCUIElement {
+        let canvas = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH 'Timeline:' AND NOT (label CONTAINS ' 0 Einstellungen')")
+        ).firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 20), "Autopilot hat nicht geschnitten")
+        return canvas
+    }
+
+    private func clipJSON(_ json: [String: Any], _ id: String) -> [String: Any]? {
+        (json["clips"] as? [[String: Any]])?.first { $0["id"] as? String == id }
+    }
+
+    /// Doppelklick öffnet die Clip-Ansicht; „Sperren“ sperrt ±0,5 s um die Abspielposition; Inspektor und Bibliothek
+    /// zeigen die Sperre; ⌘Z nimmt sie zurück.
+    @MainActor
+    func testBlockRangeInClipViewer() throws {
+        let url = try makeProject()
+        let app = launch(url)
+        _ = timeline(app)
+        let tile = app.descendants(matching: .any).matching(identifier: "clip.c1").firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 10))
+        tile.doubleClick()
+        let viewer = app.descendants(matching: .any).matching(identifier: "clipviewer").firstMatch
+        XCTAssertTrue(viewer.waitForExistence(timeout: 5), "Clip-Ansicht fehlt")
+        app.buttons["clipviewer.block"].click()
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: "clip.blocked.0").firstMatch.waitForExistence(
+                timeout: 5), "Sperrbereich fehlt im Inspektor")
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "library.badge.blocked").firstMatch.exists)
+        let blocked = try XCTUnwrap(clipJSON(try savedJSON(app, url), "c1")?["blocked"] as? [[String: Any]])
+        XCTAssertEqual(blocked.count, 1)
+        app.typeKey("z", modifierFlags: .command)
+        let undone = clipJSON(try savedJSON(app, url), "c1")?["blocked"] as? [[String: Any]] ?? []
+        XCTAssertTrue(undone.isEmpty)
+        app.buttons["clipviewer.close"].click()
+        XCTAssertFalse(viewer.exists)
+    }
+
+    /// X in der Bildspur sperrt den Ausschnitt der ausgewählten Einstellung (ein Undo-Schritt „Ausschnitt sperren“).
+    @MainActor
+    func testBlockShotFromTimeline() throws {
+        let url = try makeProject()
+        let app = launch(url)
+        let canvas = timeline(app)
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.87)).click()
+        app.typeKey("x", modifierFlags: [])
+        let json = try savedJSON(app, url)
+        let clips = try XCTUnwrap(json["clips"] as? [[String: Any]])
+        XCTAssertTrue(clips.contains { !(($0["blocked"] as? [Any]) ?? []).isEmpty }, "nichts gesperrt")
+        app.menuBars.menuBarItems["Bearbeiten"].click()
+        XCTAssertTrue(app.menuItems["Rückgängig: Ausschnitt sperren"].waitForExistence(timeout: 3))
+        app.typeKey(.escape, modifierFlags: [])
+    }
 }
