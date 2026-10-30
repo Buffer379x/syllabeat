@@ -28,6 +28,7 @@ public enum CompileError: Error, Equatable, LocalizedError {
     case unknownClip(shot: Int, clipID: String)
     case tooShort(shot: Int)
     case sourceTooShort(shot: Int, clipName: String)
+    case blocked(shot: Int, clipName: String)
     case wrongEnd
 
     public var errorDescription: String? {
@@ -39,6 +40,8 @@ public enum CompileError: Error, Equatable, LocalizedError {
         case .tooShort(let shot): "Einstellung \(shot) ist kürzer als ein Frame."
         case .sourceTooShort(let shot, let clipName):
             "Einstellung \(shot): Der Clip „\(clipName)“ ist ab dem Quell-In zu kurz."
+        case .blocked(let shot, let clipName):
+            "Einstellung \(shot): „\(clipName)“ liegt in einem Sperrbereich."
         case .wrongEnd: "Der Schnitt endet nicht am Songende."
         }
     }
@@ -83,12 +86,16 @@ public enum CutCompiler {
         guard sourceIn >= 0, sourceEnd <= clip.meta.availableSeconds + Rational(1, 1_000_000) else {
             throw CompileError.sourceTooShort(shot: number, clipName: clip.name)
         }
+        let sourceStart = FrameMath.seconds(ofFrames: sourceIn, rate: sourceRate).doubleValue
+        if clip.blocked.contains(where: { $0.overlaps(sourceStart, sourceEnd.doubleValue) }) {
+            throw CompileError.blocked(shot: number, clipName: clip.name)
+        }
         return FrameTable.Entry(
             shotID: shot.id, clipID: shot.clipID, startFrame: start, endFrame: end, sourceInFrame: sourceIn,
             sourceOutFrame: sourceOut, sourceFPS: sourceRate)
     }
 
-    /// Shots, die sich nicht kompilieren lassen (kürzer als ein Frame, Clip fehlt, Material zu kurz).
+    /// Shots, die sich nicht kompilieren lassen (kürzer als ein Frame, Clip fehlt, Material zu kurz, Sperrbereich).
     public static func brokenShots(_ project: Project, cut: Cut) -> Set<String> {
         let clips = Dictionary(project.clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var broken: Set<String> = []

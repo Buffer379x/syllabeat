@@ -1,6 +1,6 @@
 import Foundation
 
-/// Prüft die Invarianten I1–I5 eines Schnitts (Plan Abschnitt 10.1). I6 (Determinismus) und I7 (Exporte) prüfen
+/// Prüft die Invarianten I1–I5 und I8 eines Schnitts (Plan Abschnitt 10.1). I6 (Determinismus) und I7 (Exporte) prüfen
 /// die Tests direkt.
 public enum CutValidator {
     /// `minimumFactor`: Anteil der Mindestdauer, den jeder freie Shot erreichen muss (nach Rasterkorrekturen ½).
@@ -35,8 +35,19 @@ public enum CutValidator {
             if total != FrameMath.frame(atSeconds: analysis.duration, rate: project.timeline.fps) {
                 issues.append("I2: Summe der Frames ≠ Songlänge.")
             }
+        } catch CompileError.blocked {
+            // Wird unten als I8 gemeldet.
         } catch {
             issues.append("I2/I3: \(error.localizedDescription)")
+        }
+        // I8: kein Shot berührt einen Sperrbereich.
+        let clips = Dictionary(project.clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for (index, shot) in cut.shots.enumerated() {
+            do {
+                _ = try CutCompiler.entry(shot, number: index + 1, clips: clips, rate: project.timeline.fps)
+            } catch CompileError.blocked {
+                issues.append("I8: \(shot.id) liegt in einem Sperrbereich.")
+            } catch {}
         }
         // I4: Wiederholungen im Modus „identisch“ zeigen dieselben Clips und Quell-Ins wie ihre Vorlage.
         if project.style.refrainMode == .identical {
