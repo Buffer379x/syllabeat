@@ -2,7 +2,7 @@ import Foundation
 
 /// Exportformate (Plan 6.5).
 public enum ExportFormat: String, Sendable, CaseIterable, Identifiable {
-    case fcpxml, xmeml, edl, markerEDL, otio, cutList, catalogJSON, catalogCSV, srt, lrc
+    case fcpxml, xmeml, edl, markerEDL, otio, cutList, catalogJSON, catalogCSV, srt, lrc, youtubeChapters
 
     public var id: String { rawValue }
 
@@ -18,6 +18,7 @@ public enum ExportFormat: String, Sendable, CaseIterable, Identifiable {
         case .catalogCSV: "Clip-Katalog (CSV)"
         case .srt: "Untertitel (SRT)"
         case .lrc: "Songtext mit Zeiten (LRC)"
+        case .youtubeChapters: "YouTube-Kapitel (TXT)"
         }
     }
 
@@ -34,13 +35,14 @@ public enum ExportFormat: String, Sendable, CaseIterable, Identifiable {
         case .catalogCSV: "clip-katalog.csv"
         case .srt: "\(base).srt"
         case .lrc: "\(base).lrc"
+        case .youtubeChapters: "youtube-kapitel.txt"
         }
     }
 }
 
 /// Zielprogramm im Export-Dialog: Die Formate ergeben sich daraus („Erweitert“ zeigt alle).
 public enum ExportTarget: String, Sendable, CaseIterable, Identifiable {
-    case finalCut, resolve, premiere, archive
+    case finalCut, resolve, premiere, archive, video
 
     public var id: String { rawValue }
 
@@ -50,6 +52,7 @@ public enum ExportTarget: String, Sendable, CaseIterable, Identifiable {
         case .resolve: "DaVinci Resolve"
         case .premiere: "Adobe Premiere Pro"
         case .archive: "Nur Archiv"
+        case .video: "Video (YouTube)"
         }
     }
 
@@ -61,6 +64,8 @@ public enum ExportTarget: String, Sendable, CaseIterable, Identifiable {
         case .resolve: [.fcpxml, .edl, .markerEDL, .cutList, .catalogJSON]
         case .premiere: [.xmeml, .cutList, .catalogJSON]
         case .archive: [.cutList, .catalogJSON, .catalogCSV, .otio]
+        // Das MP4 und das Vorschaubild schreibt der Renderer (SyllaBeatMedia); hier nur die Textdateien.
+        case .video: [.youtubeChapters, .srt]
         }
     }
 }
@@ -88,6 +93,9 @@ public enum ProjectExporter {
         case .catalogCSV: ArchiveExporter.catalogCSV(project)
         case .srt: SubtitleExporter.srt(timeline.analysis)
         case .lrc: SubtitleExporter.lrc(timeline.analysis, title: timeline.name)
+        case .youtubeChapters:
+            project.cut.flatMap { YouTubeExport.chapters(project, cut: $0) }
+                ?? "Zu wenige Teile für YouTube-Kapitel (YouTube verlangt mindestens drei, je mindestens 10 s).\n"
         }
     }
 
