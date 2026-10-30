@@ -54,7 +54,7 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain
 
       - name: Prüfungen (scripts/check.sh)
-        run: scripts/ci-run.sh 1500 scripts/check.sh
+        run: scripts/ci-run.sh 2400 scripts/check.sh
 
       - name: Release-Build, Signatur, Selbsttest und DMG
         run: scripts/build-release.sh "${{ github.run_number }}"
