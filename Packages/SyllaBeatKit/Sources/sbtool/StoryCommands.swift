@@ -1,6 +1,8 @@
+import AVFoundation
 import Foundation
 import SyllaBeatAI
 import SyllaBeatCore
+import SyllaBeatMedia
 import SyllaBeatModels
 
 /// Text-Ähnlichkeiten wie in der App (`StoryScores.lineRows` je Zeile, Storyboard-Abschnitte, Zuschlag aus
@@ -161,4 +163,30 @@ func shotListCommand(_ arguments: [String]) async throws {
     }
     let report = CoverageAnalyzer.analyze(project, lineConfidence: confidence)
     print(ShotList.text(ShotList.entries(report, project: project)))
+}
+
+/// `render <Projekt> <Datei.mp4> [--hevc]`: fertiges Video des aktiven Schnitts, dazu YouTube-Kapitel und Prüfung von
+/// Dauer und Bildanzahl gegen die Frame-Tabelle.
+@MainActor
+func renderCommand(_ arguments: [String]) async throws {
+    guard arguments.count >= 2 else { throw ToolError(description: "Aufruf: render <Projekt> <Datei.mp4> [--hevc]") }
+    let project = try load(arguments[0]).project
+    guard let cut = project.cut else { throw ToolError(description: "Das Projekt hat noch keinen Schnitt.") }
+    let table = try CutCompiler.compile(project, cut: cut)
+    let paths = Dictionary(project.clips.map { ($0.id, $0.media.path) }, uniquingKeysWith: { first, _ in first })
+    let target = URL(fileURLWithPath: arguments[1])
+    let started = DispatchTime.now().uptimeNanoseconds
+    try await VideoRenderer.render(
+        table: table, paths: paths, song: project.song?.path, fit: project.timeline.fit,
+        settings: RenderSettings(codec: arguments.contains("--hevc") ? .hevc : .h264), to: target, progress: { _ in })
+    let seconds = Double(DispatchTime.now().uptimeNanoseconds - started) / 1e9
+    let asset = AVURLAsset(url: target)
+    let duration = try await asset.load(.duration).seconds
+    let expected = FrameMath.seconds(ofFrames: table.durationFrames, rate: table.fps).doubleValue
+    let audio = try await asset.loadTracks(withMediaType: .audio).count
+    print(
+        String(
+            format: "Video: %.3f s (Tabelle %.3f s, %lld Bilder bei %@ fps), Tonspuren %d, gerendert in %.1f s",
+            duration, expected, table.durationFrames, "\(table.fps)", audio, seconds))
+    if let chapters = YouTubeExport.chapters(project, cut: cut) { print("YouTube-Kapitel:\n\(chapters)") }
 }

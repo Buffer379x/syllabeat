@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 import SyllaBeatCore
+import SyllaBeatMedia
+import SyllaBeatUI
 
 /// Export-Dialog: Zuerst das Zielprogramm, die Formate ergeben sich daraus („Erweitert“ zeigt alle). Vor dem
 /// Schreiben werden fehlende Medien gemeldet; geschrieben wird atomar.
@@ -19,6 +21,10 @@ struct ExportSheet: View {
     @State private var written: [URL] = []
     @State private var problem: String?
     @State private var confirmReplace: [String] = []
+    @AppStorage("export.codec") private var codecRaw = RenderSettings.Codec.h264.rawValue
+    @AppStorage("export.thumbnail") private var thumbnail = true
+    @State private var renderProgress: Double?
+    @State private var renderTask: Task<Void, Never>?
 
     private var target: ExportTarget { ExportTarget(rawValue: targetRaw) ?? .finalCut }
 
@@ -60,23 +66,47 @@ struct ExportSheet: View {
                     }
                 } else {
                     LabeledContent("Dateien") {
-                        Text(formats.map { $0.fileName(base: baseName) }.joined(separator: "\n"))
+                        Text(fileNames.joined(separator: "\n"))
                             .foregroundStyle(.secondary).multilineTextAlignment(.trailing)
                     }
                 }
-                Section("Marker und Metadaten") {
-                    Toggle("Abschnitte als Marker", isOn: $sectionMarkers)
-                    Toggle("Textzeilen als Marker", isOn: $lineMarkers)
-                    Toggle("Jeden Takt als Marker", isOn: $barMarkers)
-                    Toggle("Schlagwörter und Beschreibungen", isOn: $keywords)
-                    if target == .finalCut || formats.contains(.fcpxml) {
-                        Picker("Song in Final Cut Pro", selection: $songPrimary) {
-                            Text(ExportOptions.SongPlacement.connected.title).tag(false)
-                            Text(ExportOptions.SongPlacement.primary.title).tag(true)
-                        }
-                        .help(
-                            "Verbunden: wie 0.2.0, der Song hängt am ersten Clip. Primärhandlung: Der Song liegt unten, die Clips darüber."
+                if target == .video {
+                    Section("Video") {
+                        LabeledContent(
+                            "Format",
+                            value:
+                                "\(project.timeline.width)×\(project.timeline.height) · \(Format.fps(project.timeline.fps)) fps"
                         )
+                        Picker("Codec", selection: $codecRaw) {
+                            ForEach(RenderSettings.Codec.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+                        }
+                        Toggle("Vorschaubild (1280×720)", isOn: $thumbnail)
+                        Label(
+                            "Für KI-generierte Inhalte in YouTube Studio prüfen, ob eine Kennzeichnung nötig ist.",
+                            systemImage: "info.circle"
+                        )
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        if let renderProgress {
+                            ProgressView("Video wird gerendert …", value: renderProgress)
+                                .accessibilityIdentifier("export.renderProgress")
+                        }
+                    }
+                }
+                if target != .video {
+                    Section("Marker und Metadaten") {
+                        Toggle("Abschnitte als Marker", isOn: $sectionMarkers)
+                        Toggle("Textzeilen als Marker", isOn: $lineMarkers)
+                        Toggle("Jeden Takt als Marker", isOn: $barMarkers)
+                        Toggle("Schlagwörter und Beschreibungen", isOn: $keywords)
+                        if target == .finalCut || formats.contains(.fcpxml) {
+                            Picker("Song in Final Cut Pro", selection: $songPrimary) {
+                                Text(ExportOptions.SongPlacement.connected.title).tag(false)
+                                Text(ExportOptions.SongPlacement.primary.title).tag(true)
+                            }
+                            .help(
+                                "Verbunden: wie 0.2.0, der Song hängt am ersten Clip. Primärhandlung: Der Song liegt unten, die Clips darüber."
+                            )
+                        }
                     }
                 }
                 LabeledContent("Ordner") {
@@ -116,10 +146,17 @@ struct ExportSheet: View {
                     }
                 }
                 Spacer()
-                Button("Schließen", role: .cancel, action: close).keyboardShortcut(.cancelAction)
-                Button("Exportieren", action: requestExport)
+                Button(renderProgress == nil ? "Schließen" : "Abbrechen", role: .cancel) {
+                    if renderTask != nil {
+                        renderTask?.cancel()
+                    } else {
+                        close()
+                    }
+                }
+                .keyboardShortcut(.cancelAction)
+                Button(target == .video ? "Rendern" : "Exportieren", action: requestExport)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(formats.isEmpty || project.cut == nil)
+                    .disabled(formats.isEmpty || project.cut == nil || renderTask != nil)
                     .accessibilityIdentifier("export.run")
             }
             .padding(20)
@@ -153,8 +190,18 @@ struct ExportSheet: View {
         if panel.runModal() == .OK, let url = panel.url { folderPath = url.path }
     }
 
+    /// Dateinamen der Auswahl; beim Video kommen MP4 und Vorschaubild dazu.
+    private var fileNames: [String] {
+        var names = formats.map { $0.fileName(base: baseName) }
+        if target == .video, !advanced {
+            names.insert("\(baseName).mp4", at: 0)
+            if thumbnail { names.append("vorschaubild.jpg") }
+        }
+        return names
+    }
+
     private func requestExport() {
-        let existing = formats.map { $0.fileName(base: baseName) }.filter {
+        let existing = fileNames.filter {
             FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
         }
         if existing.isEmpty { runExport() } else { confirmReplace = existing }
@@ -168,6 +215,52 @@ struct ExportSheet: View {
                 project, formats: formats, options: options, to: folder, baseName: baseName)
         } catch {
             problem = error.localizedDescription
+            return
+        }
+        if target == .video, !advanced { render() }
+    }
+
+    /// MP4 aus derselben Frame-Tabelle wie Vorschau und Exporte, danach das Vorschaubild.
+    private func render() {
+        guard let cut = project.cut else { return }
+        let table: FrameTable
+        do {
+            table = try CutCompiler.compile(project, cut: cut)
+        } catch {
+            problem = error.localizedDescription
+            return
+        }
+        let paths = Dictionary(project.clips.map { ($0.id, $0.media.path) }, uniquingKeysWith: { first, _ in first })
+        let target = folder.appendingPathComponent("\(baseName).mp4")
+        let settings = RenderSettings(codec: RenderSettings.Codec(rawValue: codecRaw) ?? .h264)
+        let still = thumbnail ? YouTubeExport.thumbnailScene(project, cut: cut) : nil
+        let project = project
+        renderProgress = 0
+        renderTask = Task {
+            defer {
+                renderTask = nil
+                renderProgress = nil
+            }
+            do {
+                try await VideoRenderer.render(
+                    table: table, paths: paths, song: project.song?.path, fit: project.timeline.fit, settings: settings,
+                    to: target
+                ) { value in Task { @MainActor in renderProgress = value } }
+                written.insert(target, at: 0)
+                if let still, let clip = project.clip(withID: still.clipID),
+                    let scene = clip.scenes.first(where: { $0.id == still.sceneID })
+                {
+                    let image = folder.appendingPathComponent("vorschaubild.jpg")
+                    try await VideoRenderer.writeStill(
+                        clipPath: clip.media.path, at: scene.keyframeTime ?? (scene.start + scene.end) / 2,
+                        size: CGSize(width: 1280, height: 720), to: image)
+                    written.append(image)
+                }
+            } catch is CancellationError {
+                problem = "Rendern abgebrochen."
+            } catch {
+                problem = error.localizedDescription
+            }
         }
     }
 

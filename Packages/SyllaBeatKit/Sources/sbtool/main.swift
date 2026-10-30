@@ -37,6 +37,7 @@ let usage = """
       geschichte <Projekt> <Wahrheit> [--seeds N]   Kapitel-, Zeilentreue und Tageszeit-Wechsel messen
       drehbuch <Projekt> <Wahrheit>   Drehbuch-Vorschlag ohne KI gegen die Wahrheit prüfen
       drehliste <Projekt> [<Wahrheit>]   Was fehlt? Zeilen ohne klares Bild, knappe Kapitel, nur mit Wasserzeichen
+      render <Projekt> <Datei.mp4> [--hevc]   fertiges Video rendern und gegen die Frame-Tabelle prüfen
     """
 
 struct ToolError: Error, CustomStringConvertible {
@@ -146,6 +147,7 @@ do {
     case ("geschichte", 3...): try await storyCommand(Array(arguments.dropFirst()))
     case ("drehbuch", 3): try await drehbuchCommand(Array(arguments.dropFirst()))
     case ("drehliste", 2...3): try await shotListCommand(Array(arguments.dropFirst()))
+    case ("render", 3...): try await renderCommand(Array(arguments.dropFirst()))
     case ("search", 3...): try await search(arguments[1], query: arguments.dropFirst(2).joined(separator: " "))
     default:
         FileHandle.standardError.write(Data((usage + "\n").utf8))

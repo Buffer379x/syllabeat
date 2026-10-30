@@ -35,12 +35,14 @@ public struct RenderSettings: Sendable, Equatable {
 public enum VideoRenderer {
     public enum RenderError: Error, LocalizedError, Equatable {
         case missingClips([String])
+        case missingSong
         case noEncoder(String)
         case failed(String)
 
         public var errorDescription: String? {
             switch self {
             case .missingClips(let ids): "Für das Video fehlen Clips: \(ids.joined(separator: ", "))."
+            case .missingSong: "Der Song ist nicht lesbar; ohne ihn entsteht kein Musikvideo."
             case .noEncoder(let codec): "Auf diesem Mac steht kein \(codec)-Encoder zur Verfügung."
             case .failed(let reason): "Das Video ließ sich nicht schreiben: \(reason)"
             }
@@ -65,6 +67,7 @@ public enum VideoRenderer {
         guard encoderAvailable(settings.codec) else { throw RenderError.noEncoder(settings.codec.title) }
         let preview = try await PreviewBuilder().build(table: table, paths: paths, song: song, fit: fit)
         guard preview.missing.isEmpty else { throw RenderError.missingClips(preview.missing) }
+        if song != nil, preview.composition.tracks(withMediaType: .audio).isEmpty { throw RenderError.missingSong }
         try Task.checkCancellation()
         let preset = settings.codec == .hevc ? AVAssetExportPresetHEVCHighestQuality : AVAssetExportPresetHighestQuality
         guard let session = AVAssetExportSession(asset: preview.composition, presetName: preset) else {

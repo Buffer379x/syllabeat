@@ -60,6 +60,18 @@ struct RenderTests {
         #expect(!FileManager.default.fileExists(atPath: target.path))
     }
 
+    @Test func missingSongFails() async throws {
+        let folder = try TestFolder.make()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (table, paths, _) = try await Self.table()
+        let target = folder.appendingPathComponent("video.mp4")
+        await #expect(throws: VideoRenderer.RenderError.missingSong) {
+            try await VideoRenderer.render(
+                table: table, paths: paths, song: folder.appendingPathComponent("fehlt.wav").path, fit: .fill,
+                settings: RenderSettings(codec: .h264), to: target, progress: { _ in })
+        }
+    }
+
     @Test func cancelRemovesPartialFile() async throws {
         let folder = try TestFolder.make()
         defer { try? FileManager.default.removeItem(at: folder) }
