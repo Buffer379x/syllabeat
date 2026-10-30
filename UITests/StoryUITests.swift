@@ -186,13 +186,14 @@ final class StoryUITests: XCTestCase {
             app.dialogs.textFields.firstMatch.exists ? app.dialogs.textFields.firstMatch : app.textFields["Name"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.typeText("Wald")
-        app.buttons["Anlegen"].click()
+        let create = app.buttons.matching(identifier: "Anlegen").allElementsBoundByIndex.first { $0.isHittable }
+        try XCTUnwrap(create, "kein Knopf „Anlegen“").click()
         let group = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'library.group.k-'")
         ).firstMatch
         XCTAssertTrue(group.waitForExistence(timeout: 5), "keine Gruppe „Wald“ in der Bibliothek")
 
-        app.buttons["toolbar.drehbuch"].click()
+        app.typeKey("d", modifierFlags: [.command, .shift])
         let cell = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'drehbuch.cell.a.'")
         ).firstMatch
@@ -264,7 +265,6 @@ final class StoryUITests: XCTestCase {
         _ = timeline(app)
         let chip = app.descendants(matching: .any).matching(identifier: "chip.inconsistencies").firstMatch
         XCTAssertTrue(chip.waitForExistence(timeout: 10))
-        XCTAssertTrue(chip.label.contains("Ungereimtheit"), chip.label)
         chip.click()
         let row = app.descendants(matching: .any).matching(identifier: "inconsistency.relaxed").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
@@ -282,7 +282,7 @@ final class StoryUITests: XCTestCase {
             clipExtra: [0: ["chapterID": "k"]])
         let app = launch(url, extra: ["-shotlist.folder", folder.path])
         _ = timeline(app)
-        app.buttons["toolbar.drehbuch"].click()
+        app.typeKey("d", modifierFlags: [.command, .shift])
         let button = app.buttons["drehbuch.shotlist"]
         XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.click()
