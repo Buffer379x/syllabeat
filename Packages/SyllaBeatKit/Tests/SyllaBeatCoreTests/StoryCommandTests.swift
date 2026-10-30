@@ -65,3 +65,66 @@ import Testing
         #expect(owner.project == project)
     }
 }
+
+@Suite struct ChapterCommandTests {
+    static func project() throws -> Project {
+        var project = StoryEngineTests.project()
+        for index in project.clips.indices { project.clips[index].chapterID = nil }
+        project.story.chapters = []
+        try GenerateCut().apply(to: &project)
+        return project
+    }
+
+    @Test func assignWithTakesCoversAllTakes() throws {
+        var project = Project(
+            clips: ["farm_pigs_wan.mp4", "farm_pigs_wan (2).mp4", "farm_pigs_wan (3).mp4", "farm_goats.mp4"].map {
+                StoryFixtures.clip($0)
+            })
+        project.story.chapters = [Chapter(id: "k", name: "Tiere", color: 0)]
+        try AssignChapter(clipIDs: ["farm_pigs_wan (2).mp4"], chapterID: "k", includeTakes: true).apply(to: &project)
+        #expect(project.clips.map(\.chapterID) == ["k", "k", "k", nil])
+    }
+
+    @Test func removingChapterCleansClipsAndPlan() throws {
+        var project = try Self.project()
+        project.story.chapters = [Chapter(id: "a", name: "A", color: 0), Chapter(id: "b", name: "B", color: 1)]
+        project.clips[0].chapterID = "b"
+        project.story.plan = ["A": ["a": .main, "b": .mix], "B": ["b": .main]]
+        try SetChapters(chapters: [Chapter(id: "a", name: "A", color: 0)]).apply(to: &project)
+        #expect(project.clips[0].chapterID == nil)
+        #expect(project.story.plan == ["A": ["a": .main]])
+    }
+
+    @Test func planChangeRecutsButKeepsLocked() throws {
+        var project = try Self.project()
+        project.cut!.shots[2].locked = true
+        let locked = project.cut!.shots[2]
+        try SetChapters(chapters: [Chapter(id: "a", name: "A", color: 0)]).apply(to: &project)
+        try AssignChapter(clipIDs: Set(project.clips.prefix(3).map(\.id)), chapterID: "a", includeTakes: false)
+            .apply(to: &project)
+        try SetChapterRole(sectionID: "B", chapterID: "a", role: .main).apply(to: &project)
+        let shots = project.cut!.shots
+        #expect(shots.contains { $0.locked && $0.clipID == locked.clipID && $0.start == locked.start })
+        let inB = StoryEngineTests.shots(in: "B", project, project.cut!).filter { !$0.locked }
+        #expect(inB.allSatisfy { project.clip(withID: $0.clipID)?.chapterID == "a" })
+    }
+
+    @MainActor
+    @Test func unchangedPlanCreatesNoUndoStep() throws {
+        var project = try Self.project()
+        project.story.chapters = [Chapter(id: "a", name: "A", color: 0)]
+        project.story.plan = ["A": ["a": .main]]
+        let owner = EditingOwner(project)
+        let undo = UndoManager()
+        try owner.perform(SetChapterRole(sectionID: "A", chapterID: "a", role: .main), undoManager: undo)
+        #expect(!undo.canUndo)
+    }
+
+    @Test func montageAndChapterPromptToggle() throws {
+        var project = try Self.project()
+        try SetMontage(sectionID: "A", on: true).apply(to: &project)
+        #expect(project.story.montage == ["A"])
+        try SetAsksForChapters(false).apply(to: &project)
+        #expect(!project.story.asksForChapters)
+    }
+}
