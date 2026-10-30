@@ -122,12 +122,25 @@ final class MediaController {
     private func add(_ clips: [Clip], skipped: [String]) {
         guard let document else { return }
         let known = Set(document.project.clips.map(\.id))
-        let fresh = clips.filter { !known.contains($0.id) }
+        var adopted = 0
+        let remembers = UserDefaults.standard.object(forKey: "clipKnowledge") as? Bool ?? true
+        let fresh = clips.filter { !known.contains($0.id) }.map { clip -> Clip in
+            // Gemerktes Clip-Wissen aus früheren Projekten (z. B. Sperrbereiche) füllt leere Felder.
+            guard remembers, let fingerprint = clip.media.fingerprint,
+                let knowledge = ClipKnowledge.load(fingerprint: fingerprint, cache: MediaCache())
+            else { return clip }
+            let result = clip.adopting(knowledge)
+            adopted += result.adopted
+            return result.clip
+        }
         if !fresh.isEmpty, let error = document.run(AddClips(clips: fresh), undoManager: undoManager) {
             message = error
         }
         var notes: [String] = []
         if clips.count > fresh.count { notes.append("\(clips.count - fresh.count) schon im Projekt") }
+        if adopted > 0 {
+            notes.append("\(adopted) Angaben aus früheren Projekten übernommen (Sperrbereiche, Tageszeit …)")
+        }
         if !skipped.isEmpty {
             notes.append("\(skipped.count) nicht lesbar: \(skipped.prefix(3).joined(separator: ", "))")
         }

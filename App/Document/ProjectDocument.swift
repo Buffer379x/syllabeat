@@ -16,7 +16,9 @@ final class ProjectDocument: ReferenceFileDocument, @unchecked Sendable {
     static var readableContentTypes: [UTType] { [.syllabeatProject, .syllabeatLegacyProject] }
     static var writableContentTypes: [UTType] { [.syllabeatProject] }
 
-    @Published var project: Project
+    @Published var project: Project {
+        didSet { rememberClipKnowledge(from: oldValue) }
+    }
     /// Version der geöffneten Datei, falls sie migriert wurde.
     let migratedFrom: Int?
 
@@ -71,3 +73,16 @@ final class ProjectDocument: ReferenceFileDocument, @unchecked Sendable {
 }
 
 extension ProjectDocument: ProjectEditing {}
+
+extension ProjectDocument {
+    /// Clip-Wissen (Sperrbereiche, Bewertung, „Nie verwenden“, eigene Merkmale) je Datei merken, damit es in anderen
+    /// Projekten mit denselben Clips gilt. Läuft nach jeder Änderung, auch nach Undo und Redo.
+    func rememberClipKnowledge(from old: Project) {
+        guard UserDefaults.standard.object(forKey: "clipKnowledge") as? Bool ?? true else { return }
+        let cache = MediaCache()
+        for clip in ClipKnowledge.changes(from: old, to: project) {
+            guard let fingerprint = clip.media.fingerprint else { continue }
+            try? ClipKnowledge(clip).save(fingerprint: fingerprint, cache: cache)
+        }
+    }
+}

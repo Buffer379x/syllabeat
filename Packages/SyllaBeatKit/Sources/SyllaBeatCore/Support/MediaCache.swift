@@ -37,6 +37,11 @@ public struct MediaCache: Sendable {
     }
 
     /// Bildbeschreibung eines Clips (JSON), sobald sie fertig ist: übersteht Abbruch und Absturz der App.
+    /// Clip-Wissen des Nutzers (Sperrbereiche, Bewertung, Merkmale), projektübergreifend.
+    public func knowledge(fingerprint: String) -> URL {
+        folder(for: fingerprint).appendingPathComponent("knowledge.json")
+    }
+
     public func description(fingerprint: String) -> URL {
         folder(for: fingerprint).appendingPathComponent("description.json")
     }

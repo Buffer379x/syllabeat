@@ -26,6 +26,8 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @Environment(AppServices.self) private var services
     @AppStorage("importSubfolders") private var importSubfolders = true
+    @AppStorage("clipKnowledge") private var clipKnowledge = true
+    @State private var knowledgeRemoved: Int?
     @AppStorage("workingCopyPreset") private var workingCopyPreset = FFmpeg.Preset.proResLT.rawValue
 
     var body: some View {
@@ -38,6 +40,16 @@ private struct GeneralSettings: View {
                     ForEach(FFmpeg.Preset.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
                 }
                 ComponentRow(services: services)
+            }
+            Section("Clip-Wissen") {
+                Toggle("Sperrbereiche, Bewertung und Tageszeit projektübergreifend merken", isOn: $clipKnowledge)
+                    .help("Dieselbe Datei in einem anderen Projekt übernimmt, was du hier festgelegt hast.")
+                HStack {
+                    Button("Gemerktes Clip-Wissen löschen") { knowledgeRemoved = Self.removeKnowledge() }
+                    if let knowledgeRemoved {
+                        Text("\(knowledgeRemoved) Einträge gelöscht").foregroundStyle(.secondary)
+                    }
+                }
             }
             Section("Zwischenspeicher") {
                 LabeledContent("Belegt") {
@@ -342,5 +354,20 @@ private struct LegacyModelsSection: View {
     private func refresh() {
         folders = Self.candidates.filter { FileManager.default.fileExists(atPath: $0.path) }
             .map { ($0, FileManager.default.allocatedSize(of: $0)) }
+    }
+}
+
+extension GeneralSettings {
+    /// Löscht alle `knowledge.json` im Zwischenspeicher; Rückgabe: Anzahl.
+    static func removeKnowledge() -> Int {
+        let cache = MediaCache()
+        let folders =
+            (try? FileManager.default.contentsOfDirectory(at: cache.root, includingPropertiesForKeys: nil)) ?? []
+        var removed = 0
+        for folder in folders {
+            let file = folder.appendingPathComponent("knowledge.json")
+            if (try? FileManager.default.removeItem(at: file)) != nil { removed += 1 }
+        }
+        return removed
     }
 }
