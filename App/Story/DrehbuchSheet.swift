@@ -9,6 +9,7 @@ struct DrehbuchSheet: View {
     var project: Project
     var textScores: TextScores
     var run: (any EditCommand) -> Void
+    var showShotList: () -> Void = {}
     var close: () -> Void
     @State private var newName = ""
 
@@ -40,6 +41,9 @@ struct DrehbuchSheet: View {
             HStack {
                 Text("● Hauptkapitel  ◐ Beimischung  · nicht").font(.caption).foregroundStyle(.secondary)
                 Spacer()
+                Button("Was fehlt? …", systemImage: "questionmark.square.dashed", action: showShotList)
+                    .help("Zeilen ohne klares Bild, knappe Kapitel und Motive nur mit Wasserzeichen – mit Prompts")
+                    .accessibilityIdentifier("drehbuch.shotlist")
                 Button("Vorschlagen", systemImage: "wand.and.stars", action: propose)
                     .disabled(story.chapters.isEmpty || columns.isEmpty)
                     .help("Kapitel den Abschnitten in Erzählreihenfolge zuordnen (aus Songtext und Bildähnlichkeit)")
@@ -123,6 +127,19 @@ struct DrehbuchSheet: View {
                 }
             }
             GridRow {
+                Text("Material").font(.callout).frame(maxWidth: 110, alignment: .leading)
+                ForEach(columns) { section in
+                    let short = shortChapters(in: section)
+                    Text(short.isEmpty ? "✓" : "⚠")
+                        .foregroundStyle(short.isEmpty ? Color.secondary : Color.orange)
+                        .help(
+                            short.isEmpty
+                                ? "Material reicht" : "Knapp: \(short.joined(separator: ", ")) – siehe „Was fehlt?“"
+                        )
+                        .accessibilityLabel(short.isEmpty ? "Material reicht" : "Material knapp")
+                }
+            }
+            GridRow {
                 Text("Montage").font(.callout).frame(maxWidth: 110, alignment: .leading)
                 ForEach(columns) { section in
                     Toggle(
@@ -160,6 +177,16 @@ struct DrehbuchSheet: View {
             "\(chapter.name) in \(section.label): \(role == .main ? "Hauptkapitel" : role == .mix ? "Beimischung" : "nicht")"
         )
         .accessibilityIdentifier("drehbuch.cell.\(section.id).\(chapter.id)")
+    }
+
+    /// Hauptkapitel eines Abschnitts, deren Material knapp ist oder fehlt.
+    private func shortChapters(in section: SongSection) -> [String] {
+        let needs = CoverageAnalyzer.analyze(project, lineConfidence: [:]).chapters
+        let entry = story.plan[section.id] ?? [:]
+        return entry.filter { $0.value == .main }.keys.compactMap { id in
+            needs.first { $0.chapterID == id && $0.status != .ok }.flatMap { _ in story.chapter(withID: id)?.name }
+        }
+        .sorted()
     }
 
     private func title(_ section: SongSection) -> String {

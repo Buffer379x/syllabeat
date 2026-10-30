@@ -50,6 +50,8 @@ struct LibraryPane: View {
     /// Kapitel zuweisen (`nil` = ohne) und neues Kapitel anlegen; das Fenster baut die Befehle.
     var assign: (Set<String>, String?) -> Void = { _, _ in }
     var createChapter: (String, Set<String>) -> Void = { _, _ in }
+    /// Kapitel-Vorschläge übernehmen (Clip-ID → Kapitel-ID).
+    var acceptSuggestions: ([String: String]) -> Void = { _ in }
     /// Tageszeit setzen (`nil` = automatisch).
     var setTime: (Set<String>, String?) -> Void = { _, _ in }
     /// Doppelklick: Clip in der Clip-Ansicht öffnen.
@@ -177,6 +179,15 @@ struct LibraryPane: View {
                         HStack(spacing: 6) {
                             Circle().fill(group.color).frame(width: 9, height: 9)
                             Text("\(group.name) · \(group.clips.count)").font(.callout.weight(.semibold))
+                            if group.id == "ohne", !suggestions.isEmpty {
+                                Spacer()
+                                Button("Vorschläge übernehmen (\(suggestions.count))") {
+                                    acceptSuggestions(suggestions.mapValues(\.chapterID))
+                                }
+                                .controlSize(.small)
+                                .help("Kapitel nach Motiv (sicher) bzw. Bildähnlichkeit (mit „?“) zuweisen")
+                                .accessibilityIdentifier("library.acceptSuggestions")
+                            }
                         }
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("library.group.\(group.id)")
@@ -223,8 +234,21 @@ struct LibraryPane: View {
         return result.filter { !$0.clips.isEmpty }
     }
 
+    /// Kapitel-Vorschläge für Clips ohne Kapitel.
+    private var suggestions: [String: (chapterID: String, sure: Bool)] {
+        guard !project.story.chapters.isEmpty else { return [:] }
+        var result: [String: (chapterID: String, sure: Bool)] = [:]
+        for clip in project.clips where clip.chapterID == nil {
+            if let suggestion = ChapterSuggester.suggest(for: clip, in: project, vectors: media.clipVectors) {
+                result[clip.id] = suggestion
+            }
+        }
+        return result
+    }
+
     private func tile(_ clip: Clip) -> some View {
         ClipTile(clip: clip, project: project, media: media, selected: selection.contains(clip.id))
+            .overlay(alignment: .bottomTrailing) { suggestionBadge(clip) }
             .onTapGesture(count: 2) { open(clip.id) }
             .onTapGesture { select(clip.id) }
             .contextMenu { menu(targets(clip.id)) }
@@ -245,6 +269,24 @@ struct LibraryPane: View {
     /// Rechtsklick in die Auswahl wirkt auf alle ausgewählten Clips, sonst nur auf diesen.
     private func targets(_ id: String) -> Set<String> {
         selection.contains(id) ? selection : [id]
+    }
+
+    @ViewBuilder
+    private func suggestionBadge(_ clip: Clip) -> some View {
+        if clip.chapterID == nil,
+            let suggestion = ChapterSuggester.suggest(for: clip, in: project, vectors: media.clipVectors),
+            let chapter = project.story.chapter(withID: suggestion.chapterID)
+        {
+            Text("→ \(chapter.name)\(suggestion.sure ? "" : " ?")")
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 4)
+                .background(.thinMaterial, in: Capsule())
+                .padding(.bottom, 22)
+                .padding(.trailing, 4)
+                .help(
+                    suggestion.sure
+                        ? "Gleiches Motiv wie Clips in „\(chapter.name)“" : "Ähnlichstes Kapitel – bitte prüfen")
+        }
     }
 
     @ViewBuilder

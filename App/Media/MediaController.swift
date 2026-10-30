@@ -22,6 +22,8 @@ final class MediaController {
     /// Erhöht sich, wenn neue Vorschaubilder im Zwischenspeicher liegen.
     private(set) var thumbnailGeneration = 0
     private(set) var sceneIndex: SceneIndex?
+    /// Mittleres Bild-Embedding je Clip (für Kapitel-Vorschläge), mit dem Index neu berechnet.
+    private(set) var clipVectors: [String: [Float]] = [:]
     /// Die Bildsuche berechnet gerade Embeddings; Treffer sind noch unvollständig.
     private(set) var preparingSearch = false
     /// Ergebnis der semantischen Suche: Clip-IDs nach Ähnlichkeit, `nil` ohne Bildsuche.
@@ -331,7 +333,11 @@ final class MediaController {
         let model = Self.model.id
         Task.detached(priority: .utility) { [weak self] in
             let index = SceneIndex(project: project, model: model)
-            await MainActor.run { self?.sceneIndex = index }
+            let vectors = index.clipVectors()
+            await MainActor.run {
+                self?.sceneIndex = index
+                self?.clipVectors = vectors
+            }
         }
     }
 

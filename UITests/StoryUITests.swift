@@ -62,12 +62,13 @@ final class StoryUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(_ url: URL) -> XCUIApplication {
+    private func launch(_ url: URL, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [
-            "-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
-            "-AppleLocale", "de_DE", "-ai.vision.provider", "off",
-        ]
+        app.launchArguments =
+            [
+                "-SBOpenDocument", url.path, "-ApplePersistenceIgnoreState", "YES", "-AppleLanguages", "(de)",
+                "-AppleLocale", "de_DE", "-ai.vision.provider", "off",
+            ] + extra
         app.launch()
         return app
     }
@@ -270,5 +271,24 @@ final class StoryUITests: XCTestCase {
         XCTAssertTrue(
             app.descendants(matching: .any).matching(identifier: "shot.reasons").firstMatch.waitForExistence(timeout: 5)
         )
+    }
+
+    /// Drehbuch-Tafel → „Was fehlt?“ öffnet die Drehliste; „Als Text sichern …“ schreibt eine Datei.
+    @MainActor
+    func testShotListOpensFromDrehbuch() throws {
+        let url = try makeProject(
+            extra: ["story": ["chapters": [["id": "k", "name": "Wald", "color": 0]], "plan": ["a": ["k": "main"]]]],
+            clipExtra: [0: ["chapterID": "k"]])
+        let app = launch(url, extra: ["-shotlist.folder", folder.path])
+        _ = timeline(app)
+        app.buttons["toolbar.drehbuch"].click()
+        let button = app.buttons["drehbuch.shotlist"]
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        button.click()
+        let save = app.buttons["shotlist.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), "„Was fehlt?“ öffnet nicht")
+        save.click()
+        let text = try String(contentsOf: folder.appendingPathComponent("drehliste.txt"), encoding: .utf8)
+        XCTAssertTrue(text.contains("Wald"), text)
     }
 }

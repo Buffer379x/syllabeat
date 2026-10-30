@@ -101,6 +101,9 @@ struct ProjectWorkspace: View {
                                     clipIDs: ids, chapterID: chapter, includeTakes: false, textScores: cut.textScores))
                         },
                         createChapter: { name, ids in createChapter(name, ids) },
+                        acceptSuggestions: { assignments in
+                            run(AcceptChapterSuggestions(assignments: assignments, textScores: cut.textScores))
+                        },
                         setTime: { ids, value in
                             run(
                                 SetTraitValue(
@@ -198,8 +201,20 @@ struct ProjectWorkspace: View {
             }
         }
         .sheet(isPresented: Bindable(cut).showsDrehbuch) {
-            DrehbuchSheet(project: project, textScores: cut.textScores, run: { run($0) }) {
+            DrehbuchSheet(
+                project: project, textScores: cut.textScores, run: { run($0) },
+                showShotList: {
+                    cut.showsDrehbuch = false
+                    // Erst nach dem Schließen der Tafel öffnen, sonst zeigt macOS das zweite Blatt nicht.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { cut.showsShotList = true }
+                }
+            ) {
                 cut.showsDrehbuch = false
+            }
+        }
+        .sheet(isPresented: Bindable(cut).showsShotList) {
+            ShotListSheet(project: project, textScores: cut.textScores, run: { run($0) }) {
+                cut.showsShotList = false
             }
         }
         .sheet(isPresented: Bindable(cut).showsExport) {

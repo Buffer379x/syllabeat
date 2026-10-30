@@ -36,6 +36,8 @@ final class CutController {
     var showsExport = false
     /// Drehbuch-Tafel offen (⇧⌘D).
     var showsDrehbuch = false
+    /// „Was fehlt?“ offen.
+    var showsShotList = false
     /// Clip in der Clip-Ansicht (Sichten und Sperren); `nil` zeigt den Schnitt.
     var viewedClipID: String?
     @ObservationIgnored let clipPlayer = ClipPlayer()

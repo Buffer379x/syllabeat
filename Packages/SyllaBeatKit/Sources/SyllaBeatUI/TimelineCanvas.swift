@@ -693,6 +693,17 @@ public final class TimelineCanvas: NSView {
         case .text:
             guard let word = word(at: point) else { return nil }
             menu.addItem(item("„\(word.text)“ korrigieren …") { [weak self] in self?.beginEditing(word) })
+            if let line = content.lines.first(where: { $0.wordIDs.contains(word.id) }) {
+                menu.addItem(.separator())
+                menu.addItem(
+                    item("Zeile braucht ein Bild") { [weak self] in
+                        self?.actions.run(SetLineNeed(text: line.text, need: true))
+                    })
+                menu.addItem(
+                    item("Bild für Zeile egal") { [weak self] in
+                        self?.actions.run(SetLineNeed(text: line.text, need: false))
+                    })
+            }
         case .image:
             guard let index = shotIndex(at: point) else { return nil }
             let shot = content.shots[index]
