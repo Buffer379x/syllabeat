@@ -297,6 +297,23 @@ public struct SetFit: EditCommand {
     }
 }
 
+/// Format, Bildrate und Bildanpassung der Timeline. Schnittgrenzen sind Zeiten mit Ankern; danach wird neu gerundet
+/// und repariert, was kürzer als ein Frame geworden ist.
+public struct SetTimelineSettings: EditCommand {
+    public var settings: TimelineSettings
+    public init(settings: TimelineSettings) { self.settings = settings }
+
+    public var actionName: String { "Timeline-Format ändern" }
+
+    public func apply(to project: inout Project) throws {
+        guard settings.width > 0, settings.height > 0, settings.fps > .zero else {
+            throw EditError.invalidValue("Ungültiges Timeline-Format.")
+        }
+        project.timeline = settings
+        project.repairCut()
+    }
+}
+
 /// Storyboard übernehmen (oder mit `nil` entfernen) und den Schnitt danach neu bestimmen; fixierte Shots bleiben.
 /// Ein Undo-Schritt für beides.
 public struct ApplyStoryboard: EditCommand {

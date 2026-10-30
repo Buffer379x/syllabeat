@@ -5,7 +5,7 @@ name: Tests
 
 on:
   push:
-    branches: ["main", "next/0.3"]
+    branches: ["main", "next/0.4"]
     paths-ignore: ["**.md", "BEDIENUNG.html", "work/**"]
   pull_request:
   workflow_dispatch:

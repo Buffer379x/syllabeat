@@ -268,9 +268,9 @@ private struct ProjectInspector: View {
             .onChange(of: project.name) { _, new in name = new }
 
         InspectorSection("Timeline") {
-            Fact("Format", "\(project.timeline.width)×\(project.timeline.height)")
-            Fact("Bildrate", "\(Format.fps(project.timeline.fps)) fps")
-            Fact("Bildanpassung", project.timeline.fit.title)
+            TimelineFormatEditor(project: project) { command in
+                errorMessage = document.run(command, undoManager: undoManager)
+            }
         }
         InspectorSection("Song") {
             if let file = project.song { Fact("Datei", file.fileName) }
@@ -392,5 +392,66 @@ struct Fact: View {
         }
         .font(.callout)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Format, Bildrate und Bildanpassung der Timeline mit Vorschlag aus dem Material.
+struct TimelineFormatEditor: View {
+    var project: Project
+    var run: (any EditCommand) -> Void
+
+    private var timeline: TimelineSettings { project.timeline }
+
+    var body: some View {
+        Picker("Format", selection: sizeBinding) {
+            ForEach(TimelineSettings.presets, id: \.title) { preset in
+                Text("\(preset.title) · \(preset.width)×\(preset.height)").tag("\(preset.width)x\(preset.height)")
+            }
+            if !TimelineSettings.presets.contains(where: { $0.width == timeline.width && $0.height == timeline.height })
+            {
+                Text("\(timeline.width)×\(timeline.height)").tag("\(timeline.width)x\(timeline.height)")
+            }
+        }
+        .accessibilityIdentifier("timeline.size")
+        Picker("Bildrate", selection: rateBinding) {
+            ForEach(rates, id: \.self) { rate in Text("\(Format.fps(rate)) fps").tag(rate) }
+        }
+        .accessibilityIdentifier("timeline.rate")
+        Picker("Bildanpassung", selection: Binding(get: { timeline.fit }, set: { run(SetFit(fit: $0)) })) {
+            ForEach(TimelineSettings.Fit.allCases, id: \.self) { Text($0.title).tag($0) }
+        }
+        let suggested = TimelineSettings.suggested(for: project.clips, current: timeline)
+        if suggested != timeline {
+            Text(
+                "Vorschlag aus dem Material: \(suggested.width)×\(suggested.height) · \(Format.fps(suggested.fps)) fps"
+            )
+            .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var rates: [Rational] {
+        TimelineSettings.rates.contains(timeline.fps) ? TimelineSettings.rates : TimelineSettings.rates + [timeline.fps]
+    }
+
+    private var rateBinding: Binding<Rational> {
+        Binding(
+            get: { timeline.fps },
+            set: { rate in
+                var settings = timeline
+                settings.fps = rate
+                run(SetTimelineSettings(settings: settings))
+            })
+    }
+
+    private var sizeBinding: Binding<String> {
+        Binding(
+            get: { "\(timeline.width)x\(timeline.height)" },
+            set: { tag in
+                let parts = tag.split(separator: "x").compactMap { Int($0) }
+                guard parts.count == 2 else { return }
+                var settings = timeline
+                (settings.width, settings.height) = (parts[0], parts[1])
+                run(SetTimelineSettings(settings: settings))
+            })
     }
 }

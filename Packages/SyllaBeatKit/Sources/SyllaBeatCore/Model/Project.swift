@@ -105,6 +105,95 @@ public struct TimelineSettings: Codable, Sendable, Equatable {
     }
 }
 
+extension TimelineSettings {
+    public struct Preset: Sendable, Equatable {
+        public var title: String
+        public var width: Int
+        public var height: Int
+    }
+
+    /// Format-Vorlagen wie in 0.1.
+    public static let presets: [Preset] = [
+        Preset(title: "Full HD", width: 1920, height: 1080), Preset(title: "4K", width: 3840, height: 2160),
+        Preset(title: "720p", width: 1280, height: 720), Preset(title: "Hochformat 9:16", width: 1080, height: 1920),
+        Preset(title: "Quadrat", width: 1080, height: 1080), Preset(title: "Kino 2,39:1", width: 1920, height: 804),
+    ]
+
+    /// Wählbare Bildraten.
+    public static let rates: [Rational] = [
+        Rational(24000, 1001), Rational(24), Rational(25), Rational(30000, 1001), Rational(30), Rational(50),
+        Rational(60000, 1001), Rational(60),
+    ]
+
+    enum Orientation { case landscape, portrait, square }
+
+    static func orientation(width: Int, height: Int) -> Orientation {
+        width == height ? .square : width > height ? .landscape : .portrait
+    }
+
+    /// Bildrate lesbar: „25“, „29,97“, „23,976“.
+    static func rateText(_ rate: Rational) -> String {
+        if rate.denominator == 1 { return "\(rate.numerator)" }
+        var text = String(format: "%.3f", rate.doubleValue)
+        while text.hasSuffix("0") { text.removeLast() }
+        return text.replacingOccurrences(of: ".", with: ",")
+    }
+
+    /// Hinweis für das Banner, wenn das Material besser zu einem anderen Format passt; `nil`, wenn alles passt.
+    public static func hint(for clips: [Clip], current: TimelineSettings) -> String? {
+        let suggested = suggested(for: clips, current: current)
+        guard suggested != current else { return nil }
+        if suggested.fps == current.fps {
+            return suggested.height > suggested.width
+                ? "Die meisten Clips sind im Hochformat, die Timeline ist quer."
+                : "Die meisten Clips passen nicht zum Seitenverhältnis der Timeline."
+        }
+        let usable = clips.filter { !$0.excluded && $0.meta.duration > 0 }
+        let matching = usable.filter { $0.meta.fps == suggested.fps }.count
+        let source = rateText(suggested.fps)
+        let target = rateText(current.fps)
+        var text = "\(matching) von \(usable.count) Clips haben \(source) fps, die Timeline \(target) fps."
+        let a = suggested.fps.doubleValue
+        let b = current.fps.doubleValue
+        let ordinals = [2: "zweite", 3: "dritte", 4: "vierte", 5: "fünfte", 6: "sechste", 7: "siebte", 8: "achte"]
+        if a > b, let word = ordinals[Int((a / (a - b)).rounded())], abs(a / (a - b) - (a / (a - b)).rounded()) < 0.01 {
+            text += " Bei \(target) fps fällt jedes \(word) Bild weg."
+        } else if a > b {
+            text += " Bewegungen können ruckeln."
+        } else {
+            text += " Einzelne Bilder werden doppelt gezeigt."
+        }
+        return text
+    }
+
+    /// Vorschlag aus dem Material: Bildrate mit der größten Gesamtdauer, Format passend zur Mehrheitsausrichtung
+    /// (nach Drehung). Passt die Ausrichtung schon, bleibt die Größe; die Bildanpassung bleibt immer.
+    public static func suggested(for clips: [Clip], current: TimelineSettings) -> TimelineSettings {
+        var result = current
+        let usable = clips.filter { !$0.excluded && $0.meta.duration > 0 }
+        guard !usable.isEmpty else { return result }
+        var durations: [Rational: Double] = [:]
+        for clip in usable { durations[clip.meta.fps, default: 0] += clip.meta.duration }
+        if let rate = durations.max(by: { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) })?.key {
+            result.fps = rate
+        }
+        var counts: [Orientation: Int] = [:]
+        for clip in usable {
+            let size = clip.meta.displaySize
+            counts[orientation(width: size.width, height: size.height), default: 0] += 1
+        }
+        let majority = counts.max { $0.value < $1.value }?.key ?? .landscape
+        if orientation(width: current.width, height: current.height) != majority {
+            switch majority {
+            case .landscape: (result.width, result.height) = (1920, 1080)
+            case .portrait: (result.width, result.height) = (1080, 1920)
+            case .square: (result.width, result.height) = (1080, 1080)
+            }
+        }
+        return result
+    }
+}
+
 /// Verweis auf eine Mediendatei: Pfad, Bookmark (findet verschobene Dateien) und Fingerprint.
 public struct MediaRef: Codable, Sendable, Equatable {
     public var path: String

@@ -44,6 +44,8 @@ struct ProjectWorkspace: View {
     @State private var errorMessage: String?
     @AppStorage("onboarding.done") private var onboardingDone = false
     @State private var showsWelcome = false
+    /// Format-Vorschlag, den der Nutzer weggeklickt hat (gilt bis zum Schließen des Fensters).
+    @State private var dismissedFormat: TimelineSettings?
 
     private var project: Project { document.project }
 
@@ -63,6 +65,15 @@ struct ProjectWorkspace: View {
             }
             if let message = ai.message {
                 Banner(text: message, systemImage: "sparkles", identifier: "aiBanner") { ai.message = nil }
+            }
+            if let hint = formatHint, let suggested = formatSuggestion {
+                Banner(
+                    text: hint, systemImage: "film.stack", identifier: "formatBanner",
+                    actionTitle: "Auf \(Format.fps(suggested.fps)) fps umstellen",
+                    action: {
+                        errorMessage = document.run(SetTimelineSettings(settings: suggested), undoManager: undoManager)
+                    }
+                ) { dismissedFormat = suggested }
             }
             if ai.offerImprovement {
                 Banner(
@@ -205,6 +216,18 @@ struct ProjectWorkspace: View {
         let terms = project.storyboard?.sections.flatMap(\.searchTerms).joined(separator: "|") ?? ""
         let described = project.clips.filter { !$0.description.isEmpty }.count
         return "\(media.sceneIndex?.count ?? 0)#\(lines)#\(terms)#\(described)"
+    }
+
+    /// Vorschlag für das Timeline-Format, sobald alle Clips eingelesen sind; nie automatisch übernommen.
+    private var formatSuggestion: TimelineSettings? {
+        guard !project.clips.isEmpty, media.busyClips.isEmpty else { return nil }
+        let suggested = TimelineSettings.suggested(for: project.clips, current: project.timeline)
+        guard suggested != project.timeline, suggested != dismissedFormat else { return nil }
+        return suggested
+    }
+
+    private var formatHint: String? {
+        formatSuggestion == nil ? nil : TimelineSettings.hint(for: project.clips, current: project.timeline)
     }
 
     private var subtitle: String {
